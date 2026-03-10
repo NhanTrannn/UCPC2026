@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+:root {
+    margin: 0;
+    padding: 0;
+}
+.overlay-blur {
+  background: radial-gradient(circle at top left, rgba(0, 0, 0, 0.4), transparent 40%),
+              radial-gradient(circle at top right, rgba(0, 0, 0, 0.4), transparent 40%),
+              radial-gradient(circle at bottom left, rgba(0, 0, 0, 0.4), transparent 40%),
+              radial-gradient(circle at bottom right, rgba(0, 0, 0, 0.4), transparent 40%);
+}
+
+.font-bevietnam {
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+.hero-section {
+  background-image: url(/heroBackground.svg);
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: 50%;
+  aspect-ratio: 15 / 9;
+}
+@keyframes expandLine {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-expand-line {
+  animation: expandLine 0.03s ease-out forwards;
+}
+
+@keyframes borderSlide {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.tab-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 5px;
+  background-color: #3e1d53;
+  border-radius: 4px;
+  animation: borderSlide 0.3s ease-out forwards;
+}
+
+.animate-border-slide {
+  animation: borderSlide 0.8s ease-out forwards;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+@keyframes lineScan {
+  0% {
+    left: 0%;
+    width: 0%;
+  }
+  50% {
+    width: 100%;
+  }
+  100% {
+    left: 100%;
+    width: 0%;
+  }
+}
+
+.animate-lineScan {
+  animation: lineScan 2.5s ease-in-out infinite;
+}
+@keyframes dropDown {
+  0% {
+    height: 0;
+  }
+  100% {
+    height: 80px;
+  }
+}
+
+@keyframes expandLine {
+  0% {
+    width: 0;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  100% {
+    width: 70%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes branchDown {
+  0% {
+    height: 0;
+  }
+  100% {
+    height: 80px; /* chiều dài rẽ xuống */
+  }
+}
+
+.animate-dropDown {
+  animation: dropDown 1s ease-in-out forwards;
+}
+
+.animate-expandLine {
+  animation: expandLine 1s ease-in-out 1s forwards;
+}
+
+.animate-branchDown {
+  animation: branchDown 0.8s ease-in-out 2s forwards; /* delay để chờ ngang xong */
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+.card-animation {
+  animation-name: fadeIn;
+  animation-duration: 1s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
