@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const publicRoutes = ['/login', '/register', '/forgot-password', '/resetPasswordByUser', '/deleteHelpRequest'];
+const publicRoutes = ['/login', '/register', '/forgot-password', '/resetPasswordByUser'];
 //const adminRoutes = ['/resetPassword/:id', '/updateInfo', '/getAllHelpRequest', '/getHelpRequestById/:id', '/solveHelpRequest', '/getAllUser', '/getUserById/:id', '/deleteUser/:id', '/confirmPayment/:id', '/searchByEmail', '/filterUnPaid', '/filterPaid', '/filterSolved', '/filterUnSolved', '/filterIsUpdate'];
-const userRoutes = ['/update-info', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id'];
+const userRoutes = ['/update-info', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id', '/deleteHelpRequest/:id'];
 const { checkWL } = require('./checkWhiteList');
 const generateToken = (payload) => {
     let token = '';
@@ -74,6 +74,7 @@ const permissionMiddleware = async (req, res, next) => {
         // }
         //console.log(req.path.includes('/resetPassword/'), req.path);
         if (decoded.EC === 0) {
+            req.user = decoded.DT;
             let checkWhiteList = await checkWL(decoded.DT.email);
             if (checkWhiteList.EC !== 0) {
                 return res.status(403).json({

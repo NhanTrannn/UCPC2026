@@ -1,20 +1,3 @@
 {
-  "development": {
-    "username": "postgres",
-    "password": "Nhann25052006!!!",
-    "database": "postgres",
-    "host": "localhost",
-    "dialect": "postgres",
-    "logging": false,
-    "port": "5432"
-  },
-  "production": {
-    "username": "root",
-    "password": "123456",
-    "database": "postgres",
-    "host": "postgres_db",
-    "dialect": "postgres",
-    "logging": false,
-    "port": "5432"
-  }
+  "_note": "Credentials have been moved to environment variables. See config.js and .env_example."
 }

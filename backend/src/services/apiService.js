@@ -103,6 +103,7 @@ const apiLoginService = async (email, password) => {
         let check = bycrypt.compareSync(password, user.password);
         if (check) {
             let payload = {
+                id: user.id,
                 email: user.email,
                 role: user.role
             }
@@ -125,7 +126,7 @@ const apiLoginService = async (email, password) => {
                 raw: true
             });
 
-            if (teamData === null || teamData.teamName === '' || teamData.teamName === null || teamData === undefined || teamData === '') {
+            if (!teamData || !teamData.teamName) {
                 let noTeamData = {
                     "id": accountInfo.id,
                     "email": accountInfo.email,
@@ -244,17 +245,37 @@ const apiRegisterService = async (email, password, username) => {
         }
         let salt = bycrypt.genSaltSync(10);
         let hash = bycrypt.hashSync(password, salt);
-        await db.User.create({
-            email: email,
-            password: hash,
-            username: username,
-            role: 'USER'
-        });
-        let user = await db.User.findOne({
-            where: {
-                email: email
-            }
-        });
+        const transaction = await db.sequelize.transaction();
+        let user;
+        let team;
+
+        try {
+            user = await db.User.create({
+                email: email,
+                password: hash,
+                username: username,
+                role: 'USER'
+            }, { transaction });
+
+            team = await db.Team.create({
+                userId: user.id,
+                teamName: null
+            }, { transaction });
+
+            await db.Process.create({
+                teamId: team.id,
+                isUpdate: false,
+                paidImage: null,
+                isPaid: false,
+                isHighSchool: null,
+                trainerName: null
+            }, { transaction });
+
+            await transaction.commit();
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
 
         if (!user) {
             return {
@@ -263,25 +284,6 @@ const apiRegisterService = async (email, password, username) => {
                 DT: ''
             }
         }
-        await db.Team.create({
-            userId: user.id,
-            teamName: null
-        });
-        let team = await db.Team.findOne({
-            where: {
-                userId: user.id
-            },
-            raw: true
-        });
-
-        await db.Process.create({
-            teamId: team.id,
-            isUpdate: false,
-            paidImage: null,
-            isPaid: false,
-            isHighSchool: null,
-            trainerName: null
-        });
 
         let title = 'Register Success';
         let htmlContent = '';
@@ -314,6 +316,7 @@ const apiRegisterService = async (email, password, username) => {
 
         //prepare data to return
         let payload = {
+            id: user.id,
             email: user.email,
             role: user.role
         }
@@ -353,7 +356,7 @@ const apiUpdateInfoService = async (data) => {
      *       {
      *          fullName: '',
      *          citizenId: '',
-     *          phone: '',   
+     *          phone: '',
      *          birth: '', //dd/mm/yyyy
      *          schoolName: ''
      *       }
@@ -399,45 +402,53 @@ const apiUpdateInfoService = async (data) => {
         }
     }
 
-    let team = await db.Team.findOne({
-        where: {
-            userId: data.userId
-        },
-        raw: true
-    });
-    if (!team) {
-        await db.Team.create({
-            userId: data.userId,
-            teamName: data.teamName
-        });
-        await db.Process.create({
-            teamId: team.id,
-            paidImage: data.paidImage ? data.paidImage : null,
-            isPaid: false,
-            isHighSchool: data.isHighSchool === 'true' ? true : false,
-            trainerName: data.trainerName ? data.trainerName : null
-        });
+    let team;
+    const transaction = await db.sequelize.transaction();
 
-    }
-    else {
-        await db.Team.update({
-            teamName: data.teamName
-        }, {
+    try {
+        team = await db.Team.findOne({
             where: {
                 userId: data.userId
-            }
+            },
+            raw: true,
+            transaction
         });
-        await db.Process.update({
-            paidImage: data.paidImage ? data.paidImage : null,
-            isHighSchool: data.isHighSchool === 'true' ? true : false,
-            trainerName: data.trainerName ? data.trainerName : null
-        }, {
-            where: {
-                teamId: team.id
-            }
-        });
-    }
-    try {
+
+        if (!team) {
+            team = await db.Team.create({
+                userId: data.userId,
+                teamName: data.teamName
+            }, { transaction });
+            await db.Process.create({
+                teamId: team.id,
+                paidImage: data.paidImage ? data.paidImage : null,
+                isPaid: false,
+                isHighSchool: data.isHighSchool === 'true' ? true : false,
+                trainerName: data.trainerName ? data.trainerName : null
+            }, { transaction });
+
+        }
+        else {
+            await db.Team.update({
+                teamName: data.teamName
+            }, {
+                where: {
+                    userId: data.userId
+                },
+                transaction
+            });
+            await db.Process.update({
+                paidImage: data.paidImage ? data.paidImage : null,
+                isHighSchool: data.isHighSchool === 'true' ? true : false,
+                trainerName: data.trainerName ? data.trainerName : null
+            }, {
+                where: {
+                    teamId: team.id
+                },
+                transaction
+            });
+        }
+
         for (let i = 0; i < data.Participants.length; i++) {
             let participant = data.Participants[i];
             await db.Participant.create({
@@ -447,16 +458,20 @@ const apiUpdateInfoService = async (data) => {
                 phone: participant.phone || null,
                 birth: participant.birth ? toDate(participant.birth) : new Date(),
                 schoolName: participant.schoolName || null
-            });
+            }, { transaction });
         }
         await db.Process.update({
             isUpdate: 1
         }, {
             where: {
                 teamId: team.id
-            }
+            },
+            transaction
         });
+
+        await transaction.commit();
     } catch (error) {
+        await transaction.rollback();
         return {
             EM: "Something went wrong, please try again",
             EC: 404,
@@ -511,7 +526,7 @@ const apiUpdateInfoService = async (data) => {
             username: accountInfoTemp.username,
             role: accountInfoTemp.role,
             paidImage: detailDataTemp.paidImage,
-            access_token: generateToken({ email: accountInfoTemp.email, role: accountInfoTemp.role }),
+            access_token: generateToken({ id: accountInfoTemp.id, email: accountInfoTemp.email, role: accountInfoTemp.role }),
             isPaid: detailDataTemp.isPaid,
             isUpdate: detailDataTemp.isUpdate,
             isHighSchool: detailDataTemp.isHighSchool,
@@ -534,9 +549,17 @@ const apiUpdateInfoService = async (data) => {
 }
 const apiSendHelpRequestService = async (userId, title, data) => {
 
+    if (!userId || !userId.id) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
     let team = await db.Team.findOne({
         where: {
-            userId: userId
+            userId: userId.id
         },
         attributes: ['id'],
         raw: true
@@ -572,22 +595,22 @@ const apiSendHelpRequestService = async (userId, title, data) => {
 
 
 }
-const apiChangePasswordService = async (email, password, newPassword) => {
+const apiChangePasswordService = async (requester, password, newPassword) => {
+
+    if (!requester || (!requester.id && !requester.email)) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
 
     let user = await db.User.findOne({
         where: {
-            email: email
+            ...(requester.id ? { id: requester.id } : { email: requester.email })
         },
         raw: true
     });
-    if (!user) {
-        user = await db.User.findOne({
-            where: {
-                username: email
-            },
-            raw: true
-        });
-    }
     if (!user) {
         return {
             EM: 'User not found',
@@ -755,11 +778,12 @@ const apiSolveHelpRequestService = async (id, response) => {
     }
 
 }
-const apiDeleteHelpRequestService = async (id) => {
+const apiDeleteHelpRequestService = async (id, requester) => {
     let request = await db.Request.findOne({
         where: {
             id: id
-        }
+        },
+        raw: true
     });
     if (!request) {
         return {
@@ -768,6 +792,55 @@ const apiDeleteHelpRequestService = async (id) => {
             DT: ''
         }
     }
+
+    if (!requester || !requester.role || !requester.email) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
+    if (requester.role === 'USER') {
+        const user = await db.User.findOne({
+            where: {
+                email: requester.email
+            },
+            attributes: ['id'],
+            raw: true
+        });
+
+        if (!user) {
+            return {
+                EM: 'User not found',
+                EC: 404,
+                DT: ''
+            }
+        }
+
+        const team = await db.Team.findOne({
+            where: {
+                userId: user.id
+            },
+            attributes: ['id'],
+            raw: true
+        });
+
+        if (!team || request.teamId !== team.id) {
+            return {
+                EM: 'You are not allowed to delete this request',
+                EC: 403,
+                DT: ''
+            }
+        }
+    } else if (requester.role !== 'ADMIN') {
+        return {
+            EM: 'You are not allowed to delete this request',
+            EC: 403,
+            DT: ''
+        }
+    }
+
     try {
         await db.Request.destroy({
             where: {
@@ -942,13 +1015,17 @@ const apiDeleteUserService = async (id) => {
             DT: ''
         }
     }
+    let transaction;
     try {
+        transaction = await db.sequelize.transaction();
         let user = await db.User.findOne({
             where: {
                 id: id
-            }
+            },
+            transaction
         });
         if (!user) {
+            await transaction.rollback();
             return {
                 EM: 'User not found',
                 EC: 404,
@@ -958,35 +1035,30 @@ const apiDeleteUserService = async (id) => {
         let team = await db.Team.findOne({
             where: {
                 userId: id
-            }
+            },
+            transaction
         });
-        let teamId = team.id;
-        await db.User.destroy({ where: { id: id } });
-        await db.Team.destroy({ where: { userId: id } });
-        await db.Process.destroy({ where: { teamId: teamId } });
-        await db.Participant.destroy({ where: { teamId: teamId } });
-        await db.Request.destroy({ where: { teamId: teamId } });
+        let teamId = team ? team.id : null;
 
-        let [teamData, detailData, participantData, ProcessData, requestData] = await Promise.all([
-            db.Team.findOne({ where: { userId: id } }),
-            db.Process.findOne({ where: { teamId: teamId } }),
-            db.Participant.findAll({ where: { teamId: teamId } }),
-            db.Request.findAll({ where: { teamId: teamId } }),
-            db.Request.findAll({ where: { teamId: teamId } })
-        ]);
-        if (teamData || detailData || participantData.length || ProcessData.length || requestData.length) {
-            return {
-                EM: 'Delete user failed, there are still some data left',
-                EC: 500,
-                DT: ''
-            }
+        if (teamId) {
+            await db.Process.destroy({ where: { teamId: teamId }, transaction });
+            await db.Participant.destroy({ where: { teamId: teamId }, transaction });
+            await db.Request.destroy({ where: { teamId: teamId }, transaction });
+            await db.Team.destroy({ where: { userId: id }, transaction });
         }
+
+        await db.User.destroy({ where: { id: id }, transaction });
+        await transaction.commit();
+
         return {
             EM: 'Delete user success',
             EC: 0,
             DT: ''
         }
     } catch (error) {
+        if (transaction) {
+            await transaction.rollback();
+        }
         return {
             EM: 'Delete user failed',
             EC: 500,
@@ -1327,7 +1399,7 @@ const apiUpdateUserByAdminService = async (data) => {
      *       {
      *          fullName: '',
      *          citizenId: '',
-     *          phone: '',   
+     *          phone: '',
      *          birth: '', //dd/mm/yyyy
      *          schoolName: ''
      *       }
@@ -1347,65 +1419,87 @@ const apiUpdateUserByAdminService = async (data) => {
             DT: ''
         }
     }
-    await db.User.update({ email: data.email, username: data.username }, { where: { id: data.userId } });
+    let transaction;
+    try {
+        transaction = await db.sequelize.transaction();
+        await db.User.update({ email: data.email, username: data.username }, { where: { id: data.userId }, transaction });
 
-    let team = await db.Team.findOne({ where: { userId: data.userId } });
+        let team = await db.Team.findOne({ where: { userId: data.userId }, transaction });
 
-    if (!team) {
-        await db.Team.create({ userId: data.userId, teamName: data.teamName });
-    }
-    else {
-        await db.Team.update({ teamName: data.teamName }, { where: { userId: data.userId } });
-    }
-    let participants = await db.Participant.findAll({ where: { teamId: team.id } });
+        if (!team) {
+            team = await db.Team.create({ userId: data.userId, teamName: data.teamName }, { transaction });
+        }
+        else {
+            await db.Team.update({ teamName: data.teamName }, { where: { userId: data.userId }, transaction });
+        }
+        let participants = await db.Participant.findAll({ where: { teamId: team.id }, order: [['id', 'ASC']], transaction });
 
-    if (!participants.length) {
         for (let i = 0; i < data.Participants.length; i++) {
             let participant = data.Participants[i];
-            await db.Participant.create({
+            let payload = {
+                fullName: participant.fullName || null,
+                citizenId: participant.citizenId || null,
+                phone: participant.phone || null,
+                birth: participant.birth ? toDate(participant.birth) : new Date(),
+                schoolName: participant.schoolName || null
+            };
+
+            if (participants[i]) {
+                await db.Participant.update(payload, {
+                    where: { id: participants[i].id },
+                    transaction
+                });
+            } else {
+                await db.Participant.create({
+                    teamId: team.id,
+                    ...payload
+                }, { transaction });
+            }
+        }
+
+        if (participants.length > data.Participants.length) {
+            const extraParticipantIds = participants
+                .slice(data.Participants.length)
+                .map((item) => item.id);
+
+            await db.Participant.destroy({
+                where: { id: extraParticipantIds },
+                transaction
+            });
+        }
+        let detail = await db.Process.findOne({ where: { teamId: team.id }, transaction });
+
+        if (!detail) {
+            await db.Process.create({
                 teamId: team.id,
-                fullName: participant.fullName || null,
-                citizenId: participant.citizenId || null,
-                phone: participant.phone || null,
-                birth: participant.birth ? toDate(participant.birth) : new Date(),
-                schoolName: participant.schoolName || null
-            });
-        }
-    }
-    else {
-        for (let i = 0; i < data.Participants.length; i++) {
-            let participant = data.Participants[i];
-            await db.Participant.update({
-                fullName: participant.fullName || null,
-                citizenId: participant.citizenId || null,
-                phone: participant.phone || null,
-                birth: participant.birth ? toDate(participant.birth) : new Date(),
-                schoolName: participant.schoolName || null
+                paidImage: data.paidImage ? data.paidImage : null,
+                isPaid: false,
+                isHighSchool: data.isHighSchool === 'true' ? true : false,
+                trainerName: data.trainerName ? data.trainerName : null,
+                isUpdate: 1
+            }, { transaction });
+        } else {
+            await db.Process.update({
+                paidImage: data.paidImage ? data.paidImage : null,
+                isHighSchool: data.isHighSchool === 'true' ? true : false,
+                trainerName: data.trainerName ? data.trainerName : null,
+                isUpdate: 1
             }, {
-                where: { teamId: team.id }
+                where: { teamId: team.id },
+                transaction
             });
         }
-    }
-    let detail = await db.Process.findOne({ where: { teamId: team.id } });
 
-    if (!detail) {
-        await db.Process.create({
-            teamId: team.id,
-            paidImage: data.paidImage ? data.paidImage : null,
-            isPaid: false,
-            isHighSchool: data.isHighSchool === 'true' ? true : false,
-            trainerName: data.trainerName ? data.trainerName : null,
-            isUpdate: 1
-        });
-    } else {
-        await db.Process.update({
-            paidImage: data.paidImage ? data.paidImage : null,
-            isHighSchool: data.isHighSchool === 'true' ? true : false,
-            trainerName: data.trainerName ? data.trainerName : null,
-            isUpdate: 1
-        }, {
-            where: { teamId: team.id }
-        });
+        await transaction.commit();
+    } catch (error) {
+        if (transaction) {
+            await transaction.rollback();
+        }
+        return {
+            EM: 'Update user by admin failed',
+            EC: 500,
+            DT: ''
+        }
     }
 
     return {
@@ -1662,14 +1756,23 @@ const apiResetPasswordByUserService = async (email, PIN, newPassword) => {
         },
         raw: true
     });
+
+    if (!checkPIN) {
+        return {
+            EM: 'PIN not found, please request a new one',
+            EC: 400,
+            DT: ''
+        }
+    }
+
     let checkPinToken = verifyToken(`Bearer ${checkPIN.PINToken}`);
 
     if (checkPinToken.EC !== 0 && checkPinToken.EM === 'jwt expired') {
-        return res.status(403).json({
+        return {
             EC: -999,
             EM: "Your PIN is expired, please try again!",
             DT: ""
-        });
+        };
     }
 
     if (checkPinToken.DT.PIN !== PIN) {
@@ -1715,7 +1818,7 @@ const apiGetDashBoardService = async () => {
      * totalUser
      * totalUpdatedInfo
      * totalPaid
-     * 
+     *
      */
     try {
         let totalUser = await db.User.count();
