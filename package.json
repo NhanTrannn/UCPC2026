@@ -1,0 +1,7 @@
+{
+  "name": "UCPC_Website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root package manifest for UCPC workspace",
+  "scripts": {}
+}
