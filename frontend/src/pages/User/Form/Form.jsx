@@ -1,8 +1,9 @@
+import { Form, Formik } from "formik";
 import { useState } from "react";
-import TeamForm from "./TeamForm";
-import MemberInfoForm from "./MemberInfoForm";
-import { Formik, Form } from "formik";
 import * as Yup from "yup";
+import { useRegistrationStore } from "../../../modules/user/store/registration.store";
+import MemberInfoForm from "./MemberInfoForm";
+import TeamForm from "./TeamForm";
 
 const validationSchema = Yup.object({
   teamName: Yup.string().required("Tên đội là bắt buộc."), //không có regex vì không cần thiết
@@ -93,7 +94,7 @@ const validationSchema2 = Yup.object({
           )
           .required("Trường học là bắt buộc."),
         CCCD: Yup.string().required("CCCD là bắt buộc."),
-        
+
       })
     )
     .min(3, "Phải có đúng 3 thành viên")
@@ -163,7 +164,7 @@ const validationSchema3 = Yup.object({
         university: Yup.string().required("Tên trường là bắt buộc."),
 
         studentId: Yup.string().required("MSSV là bắt buộc."),
-        
+
         CCCD: Yup.string().required("CCCD là bắt buộc."),
       })
     )
@@ -174,31 +175,12 @@ const validationSchema3 = Yup.object({
 
 var values_tmp = null;
 function  UserForm() {
+  const { submitTeam, submitError, clearSubmitError } = useRegistrationStore();
+
   const waitTwoSeconds = async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   };
   const [step, setStep] = useState(1);
-
-  const handleSubmit = async (values) => {
-    try {
-      const response = await fetch("http://localhost:8080/api/v1/update-info", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(values), // có thể là values từ bước 2
-      });
-
-      if (!response.ok) throw new Error("Lỗi khi gửi dữ liệu");
-
-      const result = await response.json();
-      console.log("Gửi thành công:", result);
-    } catch (error) {
-      console.error("Lỗi khi gửi:", error.message);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    console.log("Submitted:", values);
-  };
 
   return (
     <Formik
@@ -251,13 +233,14 @@ function  UserForm() {
           values_tmp = values;
           await waitTwoSeconds();
           setTouched({});
+          clearSubmitError();
           setStep(2);
           setSubmitting(false);
         } else {
           console.log("Step 2:", values_tmp, values);
           values_tmp = values;
           try {
-            await handleSubmit(values);
+            await submitTeam(values);
           } finally {
             setSubmitting(false);
           }
@@ -274,7 +257,7 @@ function  UserForm() {
               : "border-none bg-transparent "
           } mx-auto border-2   px-10 py-6`}
         >
-         
+
           {step === 1 && (
             <>
               <TeamForm />
@@ -283,8 +266,8 @@ function  UserForm() {
                   type="submit"
                   disabled={isSubmitting}
                   className={`
-              mt-0 w-full bg-[#492A51] hover:bg-[#8b2366] hover:scale-105 text-[#EDEAD2] font-semibold py-2 px-4 rounded-xl 
-              transition duration-400 
+              mt-0 w-full bg-[#492A51] hover:bg-[#8b2366] hover:scale-105 text-[#EDEAD2] font-semibold py-2 px-4 rounded-xl
+              transition duration-400
                     ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}
                   `}
                 >
@@ -322,6 +305,9 @@ function  UserForm() {
                     <span className = "text-lg">Đăng kí</span>
                   )}
                 </button>
+                {submitError && (
+                  <p className="mt-2 text-center text-red-300">{submitError}</p>
+                )}
               </div>
             </>
           )}

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 // import { useDispatch, useSelector } from 'react-redux';
 
 function Header() {
@@ -48,12 +50,12 @@ function Header() {
           {/* Đăng nhập + CTA */}
 
           <div className="flex items-center gap-4">
-            <button onClick={() => { }}
-              href="#"
+            <Link
+              to="/login"
               className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden sm:block"
             >
               Đăng nhập
-            </button>
+            </Link>
             <button onClick={() => { }}
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 h-10 px-4 py-2">
               Đăng kí
