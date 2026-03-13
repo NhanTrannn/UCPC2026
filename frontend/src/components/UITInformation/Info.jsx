@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { Tab } from "@headlessui/react";
-import { motion } from "framer-motion";
 
 import { MapPin } from "lucide-react";
 
@@ -42,11 +40,10 @@ export default function UITInformation() {
         <div className="relative rounded-2xl shadow-xl border border-blue-500 glow-animation">
           <iframe
             title="UIT Map"
-            // src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3918.225757721502!2d106.79956317480635!3d10.870426389284122!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x317527e7e8abb0eb%3A0xec43e4b99472c18a!2zVUlUIC0gQ-G7lW5nIEE!5e0!3m2!1svi!2s!4v1747147642869!5m2!1svi!2s"
-            src="https://tuyensinh.uit.edu.vn/uit-tour-360/"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3918.225757721502!2d106.79956317480635!3d10.870426389284122!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x317527e7e8abb0eb%3A0xec43e4b99472c18a!2zVUlUIC0gQ-G7lW5nIEE!5e0!3m2!1svi!2s!4v1747147642869!5m2!1svi!2s"
             width="100%"
             height="500"
-            allowFullScreen=""
+            allowFullScreen
             loading="lazy"
             className="rounded-2xl  "
           />
