@@ -1,12 +1,12 @@
+import { AnimatePresence, motion } from "framer-motion";
 import {
-    Calendar,
     Bell,
+    Calendar,
     Newspaper,
     Trophy,
     Users,
 } from "lucide-react";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const newsItems = [
     {
@@ -55,18 +55,15 @@ export default function News() {
     return (
         <section
             id="News"
-            className="relative w-full h-screen py-28 bg-gradient-to-br from-purple-900/20 to-black overflow-hidden"
+            className="relative w-full min-h-screen py-28"
         >
-            {/* Nền */}
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-black z-0" />
-            <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] opacity-10 mix-blend-overlay" />
-            <div className="container px-4 md:px-6 relative z-10">
+            <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
                 {/* Header */}
                 <div className="flex flex-col items-center justify-center space-y-4 text-center">
                     <div className="space-y-2">
-                        <div className="inline-block rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-md text-white">
+                        {/* <div className="inline-block rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-md text-white">
                             News
-                        </div>
+                        </div> */}
                         <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
                             Tin tức và thông báo
                         </h2>
@@ -90,9 +87,9 @@ export default function News() {
                                 <motion.div
                                     key={item.title}
                                     onClick={handleClick}
-                                    className={`transform ${isCenter
+            className={`transform ${isCenter
                                             ? "scale-100 opacity-100 z-10"
-                                            : "scale-90 opacity-50 z-0"
+                                            : "scale-90 opacity-50 z-0 hidden md:block"
                                         } min-w-[280px] max-w-[380px] min-h-[45vh] bg-zinc-800/50 border border-zinc-700 rounded-lg p-6 shadow-sm backdrop-blur-sm`}
                                     layout
                                     initial={{ opacity: 0, scale: 0.85 }}
@@ -101,7 +98,7 @@ export default function News() {
                                         scale: isCenter ? 1 : 0.9,
                                     }}
                                     exit={{ opacity: 0, scale: 0.85 }}
-                                    transition={{ duration: 0.3 }} 
+                                    transition={{ duration: 0.3 }}
                                 >
                                     <div>{item.icon}</div>
                                     <h3 className="text-lg font-semibold text-white mb-1">
