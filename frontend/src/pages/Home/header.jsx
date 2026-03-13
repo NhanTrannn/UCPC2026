@@ -1,7 +1,3 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Header_bg from '../../assets/Header_bg.png';
-import Navbar from '../../components/Navbar/Navbar';
-import avt from '../../assets/Header_bg.png';
 // import { useDispatch, useSelector } from 'react-redux';
 
 function Header() {

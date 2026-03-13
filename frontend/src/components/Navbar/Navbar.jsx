@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Header_bg from '../../assets/Header_bg.png';
+import { useEffect, useRef, useState } from 'react';
+
+const headerBg = '/photos/Header_bg.png';
 
 function Navbar() {
     const [isFixed, setIsFixed] = useState(false);
@@ -24,12 +25,12 @@ function Navbar() {
     return (
         <div ref={navbarRef}
         className={`fixed top-0 w-full justify-between  border-b-amber-50 flex flex-row items-center px-6 py-5 transition-all duration-300 z-50
-            
-          `}    
+
+          `}
           >
             {/* LOGO */}
             <div className="w-2/8 items-center flex ">
-                <img src='#' alt="Logo" className="h-12 w-auto" />
+                <img src={headerBg} alt="Logo" className="h-12 w-auto" />
             </div>
 
             {/* NAV LINKS */}
@@ -52,7 +53,7 @@ function Navbar() {
 
             {/* LOGIN/REGISTER */}
             <div className={`w-2/8 flex justify-items-center space-x-4 text-xl font-bold text-[#EDEAD2]`}>
-            <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl"> Đăng nhập </button>
+            <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl"> Đăng nhập </button>
                 <a
                     href="#register"
                     className="px-4 py-2 rounded-md transition duration-300 bg-transparent text-[#EDEAD2] hover:bg-[#EDEAD2] hover:text-black"

@@ -1,6 +1,7 @@
 import UserForm from "./Form/Form";
-import puzzle_background from "../../assets/puzzle_background.png";
-import mountain from "../../assets/mountain.png";
+
+const mountain = "/photos/mountain.png";
+
 function User() {
   return (
     <div
