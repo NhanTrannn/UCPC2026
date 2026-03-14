@@ -1,0 +1,22 @@
+:root {
+  --color-bg: #0b0f1a;
+  --color-text: #f5f7ff;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+.font-bevietnam input,
+.font-bevietnam select,
+.font-bevietnam textarea {
+  color: #1f2937;
+}
+
+.font-bevietnam input::placeholder,
+.font-bevietnam textarea::placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}

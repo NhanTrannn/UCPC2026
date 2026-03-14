@@ -2,12 +2,10 @@ import { TiltCard } from "./TiltCard";
 
 function Intro() {
     return (
-        <section id="Intro" className="w-full px-20 h-screen py-12 md:py-24 lg:py-32 xl:py-30 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-black z-0" />
-            <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] opacity-10 mix-blend-overlay" />
-            <div className="container px-4 md:px-6 relative z-10">
-                <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-                    <div className="flex flex-col justify-center space-y-4">
+        <section id="Intro" className="w-full min-h-screen py-24 md:py-24 lg:py-32 xl:py-30 relative">
+            <div className="mx-auto w-[88%] max-w-[1240px] px-4 md:px-8 lg:px-10 relative z-10">
+                <div className="grid items-center gap-8 md:gap-10 lg:gap-12 lg:grid-cols-[60%_40%]">
+                    <div className="flex flex-col justify-center space-y-4 max-w-[680px]">
                         <div className="space-y-2">
                             <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
                                 UIT COLLEGIATE PROGRAMMING CONTEST 2025
@@ -27,10 +25,10 @@ function Intro() {
 
                     </div>
                     {/* <div className="relative group">
-                       
+
                         <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur opacity-25 group-hover:opacity-40 transition duration-1000" />
 
-                       
+
                         <img
                             alt="Dashboard Preview"
                             loading="lazy"
@@ -43,10 +41,10 @@ function Intro() {
                         />
                     </div> */}
 
-                    <div className="relative group mx-20">
+                    <div className="relative group w-full max-w-[460px] lg:justify-self-center">
                         <TiltCard
                             options={{ max: 30 , speed: 400, scale: 1.05 }}
-                            className="rounded-3xl overflow-hidden w-full relative shadow-[0_0_60px_10px_rgba(208,32,157,0.7)] ring-[3px] ring-white/50  hover:shadow-[0_0_30px_20px_rgba(208,32,157,0.9)]"
+                            className="rounded-3xl overflow-hidden w-full relative shadow-[0_0_40px_6px_rgba(208,32,157,0.6)] ring-[3px] ring-white/50 hover:shadow-[0_0_24px_12px_rgba(208,32,157,0.8)]"
                         >
                             <div className="absolute inset-0 blur-2xl opacity-50 rounded-3xl bg-[#D0209D]/40 z-0  group-hover:opacity-70" />
                             <img

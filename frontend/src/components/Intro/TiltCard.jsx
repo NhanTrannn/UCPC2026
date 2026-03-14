@@ -1,11 +1,14 @@
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import VanillaTilt from "vanilla-tilt";
 
 export function TiltCard({ children, options, className = "" }) {
   const tiltRef = useRef(null);
 
   useEffect(() => {
-    VanillaTilt.init(tiltRef.current, options || {
+    const element = tiltRef.current;
+    if (!element) return undefined;
+
+    VanillaTilt.init(element, options || {
       max: 30,
       speed: 400,
       glare: true,
@@ -13,7 +16,11 @@ export function TiltCard({ children, options, className = "" }) {
       scale: 1.05,
     });
 
-    return () => tiltRef.current.vanillaTilt.destroy();
+    return () => {
+      if (element.vanillaTilt) {
+        element.vanillaTilt.destroy();
+      }
+    };
   }, [options]);
 
   return (

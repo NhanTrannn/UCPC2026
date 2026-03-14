@@ -1,5 +1,5 @@
-import { Field, useFormikContext, ErrorMessage } from 'formik';
-import React, { useEffect, useState } from 'react';
+import { ErrorMessage, Field, useFormikContext } from 'formik';
+import { useEffect, useState } from 'react';
 import Universities from './UniversitySelect';
 
 
@@ -31,11 +31,11 @@ function MemberInfoForm({ isUniversity }) {
   return (
     <div className=" w-full">
       <h2 className="text-gray-300 text-3xl font-bold mb-4 text-center">Thông tin các thành viên</h2>
-      <div className="flex flex-row gap-10 w-full">
+      <div className="flex flex-col md:flex-row gap-6 md:gap-10 w-full">
         {values.members.map((_, index) => (
           <div
             key={index}
-            className="p-5 py-10 border-2 h-fit rounded-lg bg-white shadow-md w-90 flex flex-col gap-2"
+            className="p-5 py-10 border-2 h-fit rounded-lg bg-white shadow-md w-full md:w-90 flex flex-col gap-2"
           >
             <h2 className="font-semibold text-xl mb-1 text-center">Thành viên {index + 1}</h2>
 
@@ -59,8 +59,8 @@ function MemberInfoForm({ isUniversity }) {
 
               <label
                 htmlFor={`members[${index}].fullName`}
-                className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
       peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
               >
                 Họ và tên
@@ -87,8 +87,8 @@ function MemberInfoForm({ isUniversity }) {
               )}
               <label
                 htmlFor={`members[${index}].email`}
-                className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
       peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
               >
                 Email
@@ -114,8 +114,8 @@ function MemberInfoForm({ isUniversity }) {
                 )}
                 <label
                   htmlFor={`members[${index}].phone`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
       peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
                 >
                   Số điện thoại
@@ -173,8 +173,8 @@ function MemberInfoForm({ isUniversity }) {
                 )}
                 <label
                   htmlFor={`members[${index}].university`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
         peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
                 >
                   Trường
@@ -185,7 +185,7 @@ function MemberInfoForm({ isUniversity }) {
             {/* MSSV/CCCD */}
 
             {/* MSSV */}
-            
+
               {isUniversity ? (<div className="flex flex-row gap-1.5 mt-0 w-full max-w-md">
                 <div className="relative mt-1">
                   <Field
@@ -204,8 +204,8 @@ function MemberInfoForm({ isUniversity }) {
                   )}
                   <label
                     htmlFor={`members[${index}].studentId`}
-                    className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                    className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
           peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
                   >
                     MSSV
@@ -228,8 +228,8 @@ function MemberInfoForm({ isUniversity }) {
                 )}
                 <label
                   htmlFor={`members[${index}].CCCD`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
         peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
                 >
                   CCCD
@@ -254,8 +254,8 @@ function MemberInfoForm({ isUniversity }) {
                 )}
                 <label
                   htmlFor={`members[${index}].CCCD`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all 
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 
+                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
+        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
         peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
                 >
                   CCCD
@@ -265,7 +265,7 @@ function MemberInfoForm({ isUniversity }) {
               )}
 
               {/* CCCD */}
-             
+
 
           </div>
         ))}

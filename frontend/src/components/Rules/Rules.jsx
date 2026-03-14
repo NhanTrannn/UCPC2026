@@ -581,9 +581,9 @@
 //   );
 // }
 
-import React, { useState, useEffect, useRef } from "react";
-import { Users, FileText, Shield } from "lucide-react";
 import clsx from "clsx";
+import { FileText, Shield, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const tabs = [
   {
@@ -708,16 +708,13 @@ export default function Rules() {
   return (
     <section
       id="Rules"
-      className="w-full px-6 md:px-20 bg-gradient-to-br from-purple-900/20 to-black h-screen py-12 md:py-24 lg:py-32 relative overflow-hidden text-white"
+      className="w-full px-6 md:px-20 min-h-screen py-12 md:py-24 lg:py-32 relative overflow-hidden text-white"
       ref={sectionRef}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-black z-0" />
-      <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] opacity-10 mix-blend-overlay z-0" />
-
       <div className="flex flex-col items-center justify-center space-y-4 text-center">
-        <div className="relative inline-block rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-md text-white">
+        {/* <div className="relative inline-block rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-md text-white">
           Rules
-        </div>
+        </div> */}
         <h2 className="relative text-3xl font-bold tracking-tighter md:text-4xl/tight bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
           Thể lệ cuộc thi
         </h2>
@@ -727,7 +724,32 @@ export default function Rules() {
         </p>
       </div>
 
-      <div className="relative z-10 max-w-6xl mx-auto">
+      {/* Mobile: simple card layout */}
+      <div className="md:hidden relative z-10 mt-10 flex flex-col gap-6 max-w-lg mx-auto">
+        {[
+          {
+            title: "Đối tượng",
+            content: "Các bạn học sinh, sinh viên đang theo học tại các trường trên địa bàn thành phố Hồ Chí Minh.",
+          },
+          {
+            title: "Hình thức đăng ký",
+            content: "Sinh viên đăng ký theo đội 3 thành viên. Học sinh đăng ký theo đội 3 thành viên và 1 huấn luyện viên là giáo viên. Lưu ý: sinh viên từng đạt giải Quốc gia sẽ không được tham gia.",
+          },
+          {
+            title: "Quy định",
+            content: "Không sử dụng internet trong thời gian thi. Không gian lận hoặc trao đổi giữa các đội. Ban tổ chức có toàn quyền xử lý vi phạm.",
+          },
+        ].map((item) => (
+          <div key={item.title} className="bg-white/10 border border-cyan-300/30 rounded-xl p-5 backdrop-blur-sm">
+            <div className="w-3 h-3 rounded-full bg-cyan-300 mb-3" />
+            <h3 className="font-semibold text-lg text-white mb-2">{item.title}</h3>
+            <p className="text-zinc-300 text-sm">{item.content}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: tree animation layout */}
+      <div className="hidden md:block relative z-10 max-w-7xl mx-auto">
         <div className="relative w-full flex justify-center my-10 items-start py-10">
           <div
             className={clsx("absolute top-0 left-1/2 w-1 bg-cyan-300", {

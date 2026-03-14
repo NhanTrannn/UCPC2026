@@ -1,7 +1,4 @@
-import React from 'react';
-import { Formik, Form, Field } from 'formik';
-import * as Yup from 'yup';
-import { ErrorMessage } from 'formik';
+import { ErrorMessage, Field } from 'formik';
 
 // Một component bao bọc react-select để tích hợp với Formik
 // color: 'text-[#492A51]', bg-[#492A51]
@@ -33,11 +30,11 @@ function TeamForm() {
 
       </div>
 
-      <div className="flex flex-row gap-1.5 mt-0 w-full max-w-md py-0">
+      <div className="flex flex-col sm:flex-row gap-3 mt-0 w-full max-w-md py-0">
         {/* Người hướng dẫn: */}
         <div className="flex flex-col gap-1.5 mt-0 w-full max-w-md flex-[7]">
           <label htmlFor="instructorName" className="text-lg font-bold text-[#492A51]">
-            Người đại diện 
+            Người đại diện
           </label>
           <Field
             id="instructorName"
@@ -80,7 +77,7 @@ function TeamForm() {
 
 
       {/* Thông tin người đại diện */}
-<div className="flex flex-row gap-1.5 mt-0 w-full max-w-md py-0">
+<div className="flex flex-col sm:flex-row gap-3 mt-0 w-full max-w-md py-0">
       <div className="flex flex-col  gap-1.5 mt-0 w-full max-w-md flex-[6]">
         <label htmlFor="instructorEmail" className="text-lg font-bold text-[#492A51]">
           Email
