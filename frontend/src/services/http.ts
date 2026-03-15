@@ -27,9 +27,11 @@ export async function apiRequest<TResponse>(
     let message = `Request failed with status ${response.status}`;
 
     try {
-      const body = (await response.json()) as { message?: string };
+      const body = (await response.json()) as { message?: string; EM?: string };
       if (body?.message) {
         message = body.message;
+      } else if (body?.EM) {
+        message = body.EM;
       }
     } catch {
       // Keep fallback message when response is not JSON.

@@ -6,7 +6,9 @@ export const userModuleRoutes: RouteObject[] = [
   {
     path: 'user',
     element: (
+      <ProtectedRoute>
         <UserPage />
+      </ProtectedRoute>
     ),
   },
 ];

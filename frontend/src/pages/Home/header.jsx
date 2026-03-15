@@ -58,7 +58,7 @@ function Header() {
               Đăng nhập
             </Link>
             <Link
-              to="/user"
+              to="/register"
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 h-10 px-4 py-2"
             >
               Đăng kí

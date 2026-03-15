@@ -1,8 +1,10 @@
+import Awards from '../../../components/Awards/Awards';
 import FadeInSection from '../../../components/FadeInSection';
 import Footer from '../../../components/Footer/footer';
 import Intro from '../../../components/Intro/Intro';
 import News from '../../../components/News/News';
 import Rules from '../../../components/Rules/Rules';
+import Sponsors from '../../../components/Sponsors/Sponsors';
 import UITInformation from '../../../components/UITInformation/Info';
 import Header from '../../../pages/Home/header';
 
@@ -24,6 +26,12 @@ function HomePage() {
           <Rules />
         </FadeInSection>
         <FadeInSection delay={0.12}>
+          <Awards />
+        </FadeInSection>
+        <FadeInSection delay={0.14}>
+          <Sponsors />
+        </FadeInSection>
+        <FadeInSection delay={0.16}>
           <UITInformation />
         </FadeInSection>
         <FadeInSection delay={0.06}>

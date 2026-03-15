@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginSuccess } from '../../../app/redux/auth.slice';
 import { useAppDispatch } from '../../../app/redux/hooks';
 import { loginWithCredentials } from '../../../services/auth.service';
@@ -34,7 +34,7 @@ function LoginPage() {
     <div className="min-h-screen w-full bg-gradient-to-br from-[#1f2937] via-[#2f1b45] to-[#492a51] px-4 py-16 text-white">
       <div className="mx-auto w-full max-w-md rounded-2xl border border-white/20 bg-black/30 p-8 backdrop-blur">
         <h1 className="text-3xl font-bold">Đăng nhập</h1>
-        <p className="mt-2 text-sm text-zinc-300">Dùng tài khoản demo để vào khu vực người dùng.</p>
+        <p className="mt-2 text-sm text-zinc-300">Đăng nhập bằng tài khoản đã tạo để vào khu vực người dùng.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
@@ -76,6 +76,13 @@ function LoginPage() {
           >
             {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
           </button>
+
+          <p className="text-center text-sm text-zinc-300">
+            Chưa có tài khoản?{' '}
+            <Link className="font-semibold text-pink-300 hover:text-pink-200" to="/register">
+              Đăng ký ngay
+            </Link>
+          </p>
         </form>
       </div>
     </div>
