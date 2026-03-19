@@ -367,6 +367,15 @@ const apiUpdateInfoService = async (data) => {
         const [day, month, year] = date.split("/").map(Number);
         return new Date(year, month - 1, day);
     }
+
+    if (!data || !data.userId) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
     let isUpdate = await db.User.findOne({
         where: {
             id: data.userId
@@ -387,6 +396,13 @@ const apiUpdateInfoService = async (data) => {
             }
         ]
     });
+    if (!isUpdate) {
+        return {
+            EM: 'User not found',
+            EC: 404,
+            DT: ''
+        }
+    }
     if (isUpdate['Team.Process.isUpdate'] !== null && isUpdate['Team.Process.isUpdate'] !== false) {
         return {
             EM: 'User can update info only once',
@@ -1821,63 +1837,141 @@ const apiGetDashBoardService = async () => {
      *
      */
     try {
-        let totalUser = await db.User.count();
-        if (totalUser === 1) {
-            return {
-                EM: 'There is no user registered',
-                EC: -1,
-                DT: ''
+        const totalUser = await db.User.count({
+            where: {
+                role: 'USER'
             }
-        }
-        console.log("total user: ", totalUser - 1)
+        });
 
-
-        let totalUpdatedInfo = await db.Process.count({
+        const totalUpdatedInfo = await db.Process.count({
             where: {
                 isUpdate: true
             }
         });
 
-        console.log("total updated info: ", totalUpdatedInfo)
-
-        let totalPaid = await db.Process.count({
+        const totalPaid = await db.Process.count({
             where: {
                 isPaid: true
             }
         });
 
-        console.log("total paid: ", totalPaid)
-        let totalUnpaid = await db.Process.count({
+        const totalUnpaid = await db.Process.count({
             where: {
-                isPaid: false
-            }
+                isPaid: false,
+            },
         });
 
-        console.log("total unpaid: ", totalUnpaid)
-        let totalUnsolvedRequest = await db.Request.count({
+        const totalUnsolvedRequest = await db.Request.count({
             where: {
                 isSolve: false
             }
         });
 
-        console.log("total unsolved request: ", totalUnsolvedRequest)
-        let totalUnupdatedInfo = await db.Process.count({
+        const totalUnupdatedInfo = await db.Process.count({
             where: {
                 isUpdate: false
             }
         });
 
-        console.log("total unupdated info: ", totalUnupdatedInfo)
-        let data = {
-            totalUser: totalUser - 1,
-            totalUpdatedInfo: totalUpdatedInfo,
-            totalPaid: totalPaid,
-            totalUnpaid: totalUnpaid,
-            totalUnsolvedRequest: totalUnsolvedRequest,
-            totalUnupdatedInfo: totalUnupdatedInfo
-        }
+        const totalHighSchool = await db.Process.count({
+            where: {
+                isHighSchool: true
+            }
+        });
 
-        console.log('check data: ', data);
+        const totalUniversity = await db.Process.count({
+            where: {
+                isHighSchool: false
+            }
+        });
+
+        const totalRegisteredTeams = await db.Team.count({
+            where: {
+                teamName: {
+                    [Op.not]: null
+                }
+            }
+        });
+
+        const totalSchools = await db.Participant.count({
+            distinct: true,
+            col: 'schoolName',
+            where: {
+                schoolName: {
+                    [Op.not]: null
+                }
+            }
+        });
+
+        const allTeams = await db.Team.findAll({
+            where: {
+                teamName: {
+                    [Op.not]: null
+                }
+            },
+            attributes: ['id', 'teamName', 'createdAt', 'updatedAt'],
+            order: [['updatedAt', 'DESC']],
+            raw: true
+        });
+
+        const allTeamsData = await Promise.all(allTeams.map(async (team) => {
+            const process = await db.Process.findOne({
+                where: {
+                    teamId: team.id
+                },
+                attributes: ['isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+                raw: true
+            });
+
+            const participant = await db.Participant.findOne({
+                where: {
+                    teamId: team.id,
+                    schoolName: {
+                        [Op.not]: null
+                    }
+                },
+                attributes: ['schoolName'],
+                order: [['createdAt', 'ASC']],
+                raw: true
+            });
+
+            let status = 'Khởi tạo';
+            if (process?.isUpdate === true && process?.isPaid === true) {
+                status = 'Đã duyệt';
+            } else if (process?.isUpdate === true) {
+                status = 'Chờ duyệt';
+            }
+
+            return {
+                id: team.id,
+                name: team.teamName,
+                coach: process?.trainerName || 'Chưa cập nhật',
+                school: participant?.schoolName || (process?.isHighSchool ? 'Khối THPT' : 'Khối Đại học'),
+                status,
+                createdAt: team.createdAt,
+                updatedAt: team.updatedAt
+            };
+        }));
+
+        const recentTeams = allTeamsData.slice(0, 5);
+
+        const data = {
+            // Keep legacy keys for backward compatibility.
+            totalUser,
+            totalUpdatedInfo,
+            totalPaid,
+            totalUnpaid,
+            totalUnsolvedRequest,
+            totalUnupdatedInfo,
+            // Additional dashboard data for the new admin UI.
+            totalRegisteredTeams,
+            totalSchools,
+            totalHighSchool,
+            totalUniversity,
+            recentTeams,
+            allTeams: allTeamsData
+        };
+
         return {
             EM: 'Get dashboard success',
             EC: 0,
@@ -1890,6 +1984,162 @@ const apiGetDashBoardService = async () => {
             EC: 500,
             DT: error
         }
+    }
+}
+const apiGetTeamDetailService = async (teamId) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id', 'userId', 'teamName', 'createdAt', 'updatedAt'],
+            raw: true
+        });
+
+        if (!team) {
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        const process = await db.Process.findOne({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+            raw: true
+        });
+
+        const participants = await db.Participant.findAll({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['id', 'fullName', 'citizenId', 'phone', 'birth', 'schoolName'],
+            order: [['createdAt', 'ASC']],
+            raw: true
+        });
+
+        const participantsData = participants.map((participant) => ({
+            ...participant,
+            birth: participant.birth ? DateToString(new Date(participant.birth)) : null
+        }));
+
+        let status = 'Khởi tạo';
+        if (process?.isUpdate === true && process?.isPaid === true) {
+            status = 'Đã duyệt';
+        } else if (process?.isUpdate === true) {
+            status = 'Chờ duyệt';
+        }
+
+        const school = participantsData.find((member) => member.schoolName)?.schoolName
+            || (process?.isHighSchool ? 'Khối THPT' : 'Khối Đại học');
+
+        return {
+            EM: 'Get team detail success',
+            EC: 0,
+            DT: {
+                id: team.id,
+                userId: team.userId,
+                teamName: team.teamName,
+                coach: process?.trainerName || 'Chưa cập nhật',
+                school,
+                isHighSchool: process?.isHighSchool ?? null,
+                status,
+                participants: participantsData,
+                createdAt: team.createdAt,
+                updatedAt: team.updatedAt
+            }
+        };
+    } catch (error) {
+        return {
+            EM: 'Get team detail failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+}
+const apiDeleteTeamService = async (teamId) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const transaction = await db.sequelize.transaction();
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id'],
+            raw: true,
+            transaction
+        });
+
+        if (!team) {
+            await transaction.rollback();
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        await db.Participant.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Request.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Process.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Team.destroy({
+            where: {
+                id: team.id
+            },
+            transaction
+        });
+
+        await transaction.commit();
+
+        return {
+            EM: 'Delete team success',
+            EC: 0,
+            DT: ''
+        };
+    } catch (error) {
+        await transaction.rollback();
+        return {
+            EM: 'Delete team failed',
+            EC: 500,
+            DT: ''
+        };
     }
 }
 const apiGetHelpByUserService = async (userId) => {
@@ -2224,6 +2474,8 @@ module.exports = {
     apiForgotPasswordService,
     apiResetPasswordByUserService,
     apiGetDashBoardService,
+    apiGetTeamDetailService,
+    apiDeleteTeamService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,

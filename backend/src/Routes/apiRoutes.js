@@ -22,6 +22,8 @@ const {
     apiForgotPasswordController,
     apiResetPasswordByUserController,
     apiGetDashboardController,
+    apiGetTeamDetailController,
+    apiDeleteTeamController,
     apiGetHelpByUserController,
     apiSaveTemplateMailController,
     apiGetTemplateMailController,
@@ -55,6 +57,8 @@ const initApiRoutes = (app) => {
     apiRoute.delete('/deleteHelpRequest/:id', apiDeleteHelpRequestController); //delete help request (solve help request
     //admin routes
     apiRoute.get('/getDashboard', apiGetDashboardController); //get dashboard
+    apiRoute.get('/getTeamDetail/:id', apiGetTeamDetailController); //get team detail by team id
+    apiRoute.delete('/deleteTeam/:id', apiDeleteTeamController); //delete team by team id
     apiRoute.put('/resetPassword/:id', apiResetPasswordController); //reset password
     apiRoute.put('/updateInfo', apiUpdateUserByAdminController); //update user info
     apiRoute.get('/getAllHelpRequest', apiGetAllHelpRequestController); //get all help request with pagination

@@ -22,6 +22,8 @@
     apiForgotPasswordService,
     apiResetPasswordByUserService,
     apiGetDashBoardService,
+    apiGetTeamDetailService,
+    apiDeleteTeamService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,
@@ -74,7 +76,11 @@ const apiRegisterController = async (req, res) => {
 }
 const apiUpdateInfoController = async (req, res) => {
     try {
-        let result = await apiUpdateInfoService(req.body);
+        const payload = {
+            ...req.body,
+            userId: req.user?.id ?? req.body?.userId
+        };
+        let result = await apiUpdateInfoService(payload);
         return sendResult(res, result);
     } catch (error) {
         return res.status(500).json({
@@ -373,6 +379,32 @@ const apiGetDashboardController = async (req, res) => {
 
     }
 }
+const apiGetTeamDetailController = async (req, res) => {
+    try {
+        let id = req.params.id;
+        let result = await apiGetTeamDetailService(+id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
+const apiDeleteTeamController = async (req, res) => {
+    try {
+        let id = req.params.id;
+        let result = await apiDeleteTeamService(+id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
 const apiGetHelpByUserController = async (req, res) => {
     try {
         let id = req.params.id;
@@ -511,6 +543,8 @@ module.exports = {
     apiForgotPasswordController,
     apiResetPasswordByUserController,
     apiGetDashboardController,
+    apiGetTeamDetailController,
+    apiDeleteTeamController,
     apiGetHelpByUserController,
     apiSaveTemplateMailController,
     apiGetTemplateMailController,
@@ -519,4 +553,3 @@ module.exports = {
     apiSendMailWithTemplateController,
     apiSendEmailExampleController
 }
-
