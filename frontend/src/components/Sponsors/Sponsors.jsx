@@ -31,7 +31,6 @@ export default function Sponsors() {
 
       <div className="relative z-10 mx-auto w-[88%] max-w-[1240px]">
         <div className="text-center max-w-3xl mx-auto">
-          <p className="text-sm uppercase tracking-[0.35em] text-zinc-400">Partners</p>
           <h2 className="mt-4 text-3xl font-bold tracking-tighter md:text-5xl bg-gradient-to-r from-white via-zinc-100 to-zinc-400 text-transparent bg-clip-text">
             Nhà tài trợ và đơn vị đồng hành
           </h2>

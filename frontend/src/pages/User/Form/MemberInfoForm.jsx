@@ -2,15 +2,13 @@ import { ErrorMessage, Field, useFormikContext } from 'formik';
 import { useEffect, useState } from 'react';
 import Universities from './UniversitySelect';
 
-
-
-var values_tmp = null;
 function MemberInfoForm({ isUniversity }) {
-
   const { values, touched } = useFormikContext();
   const [universityList, setUniversityList] = useState([]);
-  values_tmp = values;
-  console.log('values -> ', values_tmp);
+
+  const fieldClassName =
+    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-sm text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
+
   useEffect(() => {
     if (isUniversity) {
       fetch('./data/university_names.json')
@@ -28,252 +26,173 @@ function MemberInfoForm({ isUniversity }) {
         });
     }
   }, [isUniversity]);
+
   return (
-    <div className=" w-full">
-      <h2 className="text-gray-300 text-3xl font-bold mb-4 text-center">Thông tin các thành viên</h2>
-      <div className="flex flex-col md:flex-row gap-6 md:gap-10 w-full">
+    <div className="w-full">
+      <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-2xl font-black">Thông tin thành viên</h2>
+
+      <div className="mt-4 space-y-5">
         {values.members.map((_, index) => (
           <div
             key={index}
-            className="p-5 py-10 border-2 h-fit rounded-lg bg-white shadow-md w-full md:w-90 flex flex-col gap-2"
+            className="rounded-xl border border-violet-200/15 bg-[#120d25] p-4 md:p-5"
           >
-            <h2 className="font-semibold text-xl mb-1 text-center">Thành viên {index + 1}</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#f5f2ff]">Thành viên {index + 1}</h3>
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#8f86b4]">
+                {index + 1}/3
+              </span>
+            </div>
 
-            {/* Họ và tên */}
-            <div className="relative mt-1">
-              <Field
-                id={`members[${index}].fullName`}
-                name={`members[${index}].fullName`}
-                placeholder=" "
-                className="peer w-full border-2 border-gray-400 rounded px-3 pt-5 pb-2 hover:border-[#AD2971] focus:ring-2 focus:ring-[#492A51] transition"
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor={`members[${index}].fullName`} className="text-sm font-semibold text-[#d6cff5]">
+                  Họ và tên <span className="font-normal text-[#8f86b4]">(VD: NGUYỄN VĂN A)</span>
+                </label>
+                <Field
+                  id={`members[${index}].fullName`}
+                  name={`members[${index}].fullName`}
+                  className={fieldClassName}
+                />
               {touched.members?.[index]?.fullName && (
-                <div className=" mt-1">
-
+                <div className="mt-1">
                   <ErrorMessage name={`members[${index}].fullName`}>
-                    {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
+                    {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                   </ErrorMessage>
-
                 </div>
               )}
+              </div>
 
-              <label
-                htmlFor={`members[${index}].fullName`}
-                className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-      peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-              >
-                Họ và tên
-              </label>
+              <div>
+                <label htmlFor={`members[${index}].university`} className="text-sm font-semibold text-[#d6cff5]">
+                  Trường{' '}
+                  <span className="font-normal text-[#8f86b4]">
+                    (VD: {isUniversity ? 'THPT BÁCH KHOA HÀ NỘI' : 'THPT NGUYỄN CÔNG TRỨ'})
+                  </span>
+                </label>
+                {isUniversity ? (
+                  <Universities name={`members[${index}].university`} options={universityList} />
+                ) : (
+                  <Field
+                    id={`members[${index}].university`}
+                    name={`members[${index}].university`}
+                    className={fieldClassName}
+                  />
+                )}
+                {touched.members?.[index]?.university && (
+                  <div className="mt-1">
+                    <ErrorMessage name={`members[${index}].university`}>
+                      {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
+                    </ErrorMessage>
+                  </div>
+                )}
+              </div>
 
-            </div>
-
-            {/* Email */}
-
-            <div className="relative mt-1">
-              <Field
-                id={`members[${index}].email`}
-                name={`members[${index}].email`}
-                type="email"
-                placeholder=" "
-                className="peer w-full border-2 border-gray-400 rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
-              />
+              <div>
+                <label htmlFor={`members[${index}].email`} className="text-sm font-semibold text-[#d6cff5]">
+                  Email cá nhân <span className="font-normal text-[#8f86b4]">(VD: abc@gmail.com)</span>
+                </label>
+                <Field
+                  id={`members[${index}].email`}
+                  name={`members[${index}].email`}
+                  type="email"
+                  className={fieldClassName}
+                />
               {touched.members?.[index]?.email && (
-                <div className=" mt-1">
+                <div className="mt-1">
                   <ErrorMessage name={`members[${index}].email`}>
-                    {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
+                    {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                   </ErrorMessage>
                 </div>
               )}
-              <label
-                htmlFor={`members[${index}].email`}
-                className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-      peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-              >
-                Email
-              </label>
-            </div>
-            {/* <div className="flex flex-row gap-1.5 mt-0 w-full max-w-md"> */}
-              {/* Số điện thoại */}
-              <div className="relative mt-1 flex-[6]">
+              </div>
+
+              <div>
+                <label htmlFor={`members[${index}].phone`} className="text-sm font-semibold text-[#d6cff5]">
+                  Số điện thoại <span className="font-normal text-[#8f86b4]">(VD: 0912345678)</span>
+                </label>
                 <Field
                   id={`members[${index}].phone`}
                   name={`members[${index}].phone`}
                   type="tel"
-                  placeholder=" "
-                  className="peer w-full border-2 border-gray-400 rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
+                  className={fieldClassName}
                 />
                 {touched.members?.[index]?.phone && (
-                  <div className=" mt-1">
+                  <div className="mt-1">
                     <ErrorMessage name={`members[${index}].phone`}>
-                      {(msg) => <div className="text-red-500 text-sm mt-1">{msg}</div>}
+                      {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                     </ErrorMessage>
-
                   </div>
                 )}
-                <label
-                  htmlFor={`members[${index}].phone`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-      peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                >
-                  Số điện thoại
-                </label>
               </div>
 
-              {/* Ngày sinh */}
-              <div className="relative mt-1 flex-[4]">
+              <div>
+                <label htmlFor={`members[${index}].birth`} className="text-sm font-semibold text-[#d6cff5]">
+                  Ngày sinh <span className="font-normal text-[#8f86b4]">(VD: 22/05/2006)</span>
+                </label>
                 <Field
                   id={`members[${index}].birth`}
                   name={`members[${index}].birth`}
                   type="date"
-                  placeholder=" "
-                  className="peer w-full border-2 border-gray-400 rounded px-3 pt-5 pb-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#492A51] transition"
+                  className={fieldClassName}
                 />
                 {touched.members?.[index]?.birth && (
-                  <div className=" mt-1">
+                  <div className="mt-1">
                     <ErrorMessage name={`members[${index}].birth`}>
-                      {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
+                      {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                     </ErrorMessage>
                   </div>
                 )}
-                <label
-                  htmlFor={`members[${index}].birth`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 bg-white px-1
-      transition-all pointer-events-none
-      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-      peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                >
-                  Ngày sinh
-                </label>
               </div>
-            {/* </div> */}
-            {/* Trường học */}
-            {isUniversity ? (
-              <Universities
-                name={`members[${index}].university`}
-                options={universityList}
-              />
-            ) : (
-              <div className="relative mt-1">
-                <Field
-                  id={`members[${index}].university`}
-                  name={`members[${index}].university`}
-                  placeholder=" "
-                  className="peer w-full border-2 border-gray-400 rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
-                />
-                {touched.members?.[index]?.university && (
-                  <div className=" mt-1">
 
-                    <ErrorMessage name={`members[${index}].university`}>
-                      {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
-                    </ErrorMessage>
-                  </div>
-                )}
-                <label
-                  htmlFor={`members[${index}].university`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-        peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                >
-                  Trường
-                </label>
-              </div>
-            )}
-
-            {/* MSSV/CCCD */}
-
-            {/* MSSV */}
-
-              {isUniversity ? (<div className="flex flex-row gap-1.5 mt-0 w-full max-w-md">
-                <div className="relative mt-1">
+              {isUniversity ? (
+                <div>
+                  <label htmlFor={`members[${index}].studentId`} className="text-sm font-semibold text-[#d6cff5]">
+                    MSSV / Mã học sinh <span className="font-normal text-[#8f86b4]">(VD: 22520123)</span>
+                  </label>
                   <Field
                     id={`members[${index}].studentId`}
                     name={`members[${index}].studentId`}
-                    placeholder=" "
-                    className="peer w-full border-2 border-gray-400  rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
+                    className={fieldClassName}
                   />
                   {touched.members?.[index]?.studentId && (
-                    <div className=" mt-1">
-
+                    <div className="mt-1">
                       <ErrorMessage name={`members[${index}].studentId`}>
-                        {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
+                        {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                       </ErrorMessage>
                     </div>
                   )}
-                  <label
-                    htmlFor={`members[${index}].studentId`}
-                    className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-          peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                  >
-                    MSSV
-                  </label>
-                </div>
-                <div className="relative mt-1">
-                <Field
-                  id={`members[${index}].CCCD`}
-                  name={`members[${index}].CCCD`}
-                  placeholder=" "
-                  className="peer w-full border-2 border-gray-400  rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
-                />
-                {touched.members?.[index]?.CCCD && (
-                  <div className=" mt-1">
-
-                    <ErrorMessage name={`members[${index}].CCCD`}>
-                      {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
-                    </ErrorMessage>
-                  </div>
-                )}
-                <label
-                  htmlFor={`members[${index}].CCCD`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-        peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                >
-                  CCCD
-                </label>
-              </div>
                 </div>
               ) : (
-                <div className="relative mt-1">
+                <div>
+                  <label className="text-sm font-semibold text-transparent">Ẩn trường</label>
+                  <div className="mt-2 h-12" />
+                </div>
+              )}
+
+              <div>
+                <label htmlFor={`members[${index}].CCCD`} className="text-sm font-semibold text-[#d6cff5]">
+                  Số CCCD <span className="font-normal text-[#8f86b4]">(VD: 07920500xxxx)</span>
+                </label>
                 <Field
                   id={`members[${index}].CCCD`}
                   name={`members[${index}].CCCD`}
-                  placeholder=" "
-                  className="peer w-full border-2 border-gray-400  rounded px-3 pt-5 pb-2 focus:ring-2 focus:ring-[#492A51] transition"
+                  className={fieldClassName}
                 />
                 {touched.members?.[index]?.CCCD && (
-                  <div className=" mt-1">
-
+                  <div className="mt-1">
                     <ErrorMessage name={`members[${index}].CCCD`}>
-                      {(msg) => <div className="text-red-500 text-sm mt-1 font-style: italic">{msg}</div>}
+                      {(msg) => <div className="text-sm font-medium text-red-300">{msg}</div>}
                     </ErrorMessage>
                   </div>
                 )}
-                <label
-                  htmlFor={`members[${index}].CCCD`}
-                  className="absolute left-3 top-1 text-sm text-gray-500 transition-all
-        peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400
-        peer-focus:top-1 peer-focus:text-sm peer-focus:text-[#492A51]"
-                >
-                  CCCD
-                </label>
               </div>
-
-              )}
-
-              {/* CCCD */}
-
-
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
-console.log('values_tmp 2-> ', values_tmp);
 
 export default MemberInfoForm;

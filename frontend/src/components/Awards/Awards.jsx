@@ -1,103 +1,107 @@
-import { ArrowRight, Crown, Medal, Sparkles, Trophy } from "lucide-react";
+import { motion, useInView } from "framer-motion";
+import { Award, CircleDot, Crown, Trophy } from "lucide-react";
+import { useRef } from "react";
 
 const awardCards = [
   {
-    title: "Giải Nhất",
-    amount: "12.000.000đ",
-    Icon: Crown,
-    accent: "from-amber-300 via-yellow-300 to-orange-400",
-    perks: ["Cúp vô địch", "Chứng nhận chính thức", "Quà tặng từ ban tổ chức"],
+    title: "Giải Nhì",
+    amount: "30.000.000đ",
+    Icon: Award,
+    tagline: "Silver Trophy",
+    perks: ["Quà tặng từ NTT Công nghệ"],
+    isFeatured: false,
+    frameClass: "border-slate-200/75 shadow-[0_0_22px_rgba(226,232,240,0.5)]",
+    textClass: "text-slate-100",
+    amountClass: "text-white",
   },
   {
-    title: "Giải Nhì",
-    amount: "8.000.000đ",
+    title: "Giải Nhất",
+    amount: "100.000.000đ",
     Icon: Trophy,
-    accent: "from-cyan-300 via-sky-300 to-blue-400",
-    perks: ["Kỷ niệm chương", "Chứng nhận chính thức", "Quà tặng học thuật"],
+    badge: "Winner Champion",
+    tagline: "Gold Cup & Certificates",
+    perks: ["Suất thực tập tại Big Tech"],
+    isFeatured: true,
+    frameClass: "border-yellow-300 shadow-[0_0_22px_rgba(255,215,0,0.7),0_0_64px_rgba(255,215,0,0.32)]",
+    textClass: "text-yellow-100",
+    amountClass: "text-white",
   },
   {
     title: "Giải Ba",
-    amount: "5.000.000đ",
-    Icon: Medal,
-    accent: "from-fuchsia-300 via-pink-300 to-rose-400",
-    perks: ["Kỷ niệm chương", "Chứng nhận chính thức", "Phần quà lưu niệm"],
+    amount: "15.000.000đ",
+    Icon: Crown,
+    tagline: "Bronze Trophy",
+    perks: ["Quà tặng NTT"],
+    isFeatured: false,
+    frameClass: "border-amber-700/70 shadow-[0_0_18px_rgba(217,119,6,0.38)]",
+    textClass: "text-amber-200",
+    amountClass: "text-amber-400",
   },
 ];
 
 export default function Awards() {
+  const cardsRef = useRef(null);
+  const cardsInView = useInView(cardsRef, { once: true, margin: "-80px 0px -40px 0px" });
+
   return (
-    <section id="Pricing" className="relative w-full py-24 md:py-28 overflow-hidden">
-      <div className="absolute inset-0 opacity-50">
-        <div className="absolute left-[8%] top-24 h-40 w-40 rounded-full bg-amber-400/10 blur-3xl" />
-        <div className="absolute right-[10%] top-40 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
-      </div>
+    <section id="Pricing" className="relative w-full overflow-hidden py-24 md:py-28">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(92,29,152,0.25),transparent_42%),radial-gradient(circle_at_80%_75%,rgba(245,158,11,0.12),transparent_40%)]" />
 
-      <div className="relative z-10 mx-auto w-[88%] max-w-[1240px]">
-        <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-          <div className="space-y-6 max-w-xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 backdrop-blur-sm">
-              <Sparkles size={16} className="text-amber-300" />
-              Quỹ thưởng mùa giải 2026
-            </div>
+      <div className="relative z-10 mx-auto w-[92%] max-w-[1180px]">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="font-bevietnam mt-4 px-2 text-3xl font-bold leading-tight tracking-tight text-white md:px-0 md:text-5xl">
+            Giải thưởng xứng tầm cho những đội đột phá mạnh nhất
+          </h2>
+          <p className="mt-4 text-[10px] uppercase tracking-[0.35em] text-zinc-400 md:text-xs">Quỹ thưởng mùa giải 2026</p>
+          <div className="mx-auto mt-4 h-px w-20 bg-cyan-300/80" />
+        </div>
 
-            <div className="space-y-4">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-5xl bg-gradient-to-r from-white via-zinc-100 to-zinc-400 text-transparent bg-clip-text">
-                Giải thưởng xứng tầm cho những đội bứt phá mạnh nhất
-              </h2>
-              <p className="text-zinc-400 md:text-lg leading-8">
-                Ngoài phần thưởng tiền mặt, các đội đạt thành tích cao còn nhận được cúp,
-                chứng nhận và cơ hội ghi dấu ấn trong cộng đồng lập trình thi đấu của UIT.
-              </p>
-            </div>
+        <div ref={cardsRef} className="mt-12 grid items-end gap-6 md:grid-cols-3 md:gap-8">
+          {awardCards.map((award, index) => (
+            <motion.article
+              key={award.title}
+              initial={{ opacity: 0, y: 42, scale: 0.96 }}
+              animate={cardsInView ? { opacity: 1, y: 0, scale: 1 } : {}}
+              transition={{
+                duration: 0.68,
+                delay: 0.12 + index * 0.14,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className={`relative overflow-hidden rounded-[22px] border bg-[#0c0a1a]/88 px-5 pb-7 pt-8 backdrop-blur-sm transition duration-300 md:px-6 ${award.frameClass} ${award.isFeatured ? "md:min-h-[460px] md:scale-[1.03]" : "md:min-h-[390px] md:translate-y-7"}`}
+            >
+              {award.isFeatured && (
+                <>
+                  <div className="absolute -top-20 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-yellow-300/25 blur-3xl" />
+                  <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-xl border-x border-b border-yellow-200/60 bg-yellow-300 px-5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-900">
+                    {award.badge}
+                  </div>
+                </>
+              )}
 
-            <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-sm shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
-              <p className="text-sm uppercase tracking-[0.3em] text-zinc-400">Tổng giá trị</p>
-              <div className="mt-3 flex items-end gap-3">
-                <span className="text-5xl font-black text-white">25M+</span>
-                <span className="pb-1 text-zinc-400">VNĐ giải thưởng và quà tặng</span>
-              </div>
-              <p className="mt-4 text-sm leading-7 text-zinc-400">
-                Cơ cấu giải có thể được cập nhật thêm khi có các đơn vị đồng hành chiến lược
-                trong giai đoạn cận ngày thi.
-              </p>
-            </div>
-          </div>
+              <div className="relative z-10 mt-3 flex flex-col items-center text-center">
+                <award.Icon className={`h-10 w-10 ${award.isFeatured ? "text-yellow-300" : award.textClass}`} />
+                <h3 className={`mt-5 text-3xl font-black uppercase italic tracking-tight ${award.textClass}`}>
+                  {award.title}
+                </h3>
+                <p className={`mt-4 text-[42px] font-black leading-none md:text-[48px] ${award.amountClass}`}>
+                  {award.amount}
+                </p>
 
-          <div className="grid gap-5 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            {awardCards.map((award) => (
-              <article
-                key={award.title}
-                className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/50 p-6 backdrop-blur-sm shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
-              >
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${award.accent}`} />
-                <div className="flex items-center justify-between">
-                  <award.Icon className="h-9 w-9 text-white/90" />
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-300">
-                    Award
-                  </span>
-                </div>
+                <p className={`mt-6 text-sm italic ${award.isFeatured ? "text-yellow-300" : "text-zinc-400"}`}>
+                  {award.tagline}
+                </p>
 
-                <div className="mt-8">
-                  <p className="text-sm uppercase tracking-[0.24em] text-zinc-400">{award.title}</p>
-                  <p className="mt-3 text-3xl font-black text-white">{award.amount}</p>
-                </div>
-
-                <div className="mt-6 space-y-3 text-sm text-zinc-300">
+                <div className="mt-5 space-y-2 text-sm text-zinc-300">
                   {award.perks.map((perk) => (
-                    <div key={perk} className="flex items-start gap-3">
-                      <span className={`mt-1 h-2.5 w-2.5 rounded-full bg-gradient-to-r ${award.accent}`} />
+                    <p key={perk} className="flex items-center justify-center gap-2">
+                      <CircleDot size={12} className={award.isFeatured ? "text-yellow-300" : "text-zinc-500"} />
                       <span>{perk}</span>
-                    </div>
+                    </p>
                   ))}
                 </div>
-
-                <div className="mt-8 flex items-center gap-2 text-sm font-medium text-zinc-200 transition-transform duration-300 group-hover:translate-x-1">
-                  <span>Ghi danh để tranh giải</span>
-                  <ArrowRight size={16} />
-                </div>
-              </article>
-            ))}
-          </div>
+              </div>
+            </motion.article>
+          ))}
         </div>
       </div>
     </section>

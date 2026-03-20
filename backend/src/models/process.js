@@ -22,7 +22,8 @@ module.exports = (sequelize, DataTypes) => {
     isPaid: DataTypes.BOOLEAN,
     isUpdate: DataTypes.BOOLEAN,
     isHighSchool: DataTypes.BOOLEAN,
-    trainerName: DataTypes.STRING
+    trainerName: DataTypes.STRING,
+    rejectionReason: DataTypes.TEXT
   }, {
     sequelize,
     modelName: 'Process',

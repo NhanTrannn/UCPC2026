@@ -20,3 +20,31 @@ body {
   color: #9ca3af;
   opacity: 1;
 }
+
+.registration-shell input,
+.registration-shell select,
+.registration-shell textarea {
+  color: #f3efff;
+  -webkit-text-fill-color: #f3efff;
+}
+
+.registration-shell input::placeholder,
+.registration-shell textarea::placeholder {
+  color: #8f86b4;
+  opacity: 1;
+}
+
+.registration-shell input:-webkit-autofill,
+.registration-shell input:-webkit-autofill:hover,
+.registration-shell input:-webkit-autofill:focus,
+.registration-shell textarea:-webkit-autofill,
+.registration-shell textarea:-webkit-autofill:hover,
+.registration-shell textarea:-webkit-autofill:focus,
+.registration-shell select:-webkit-autofill,
+.registration-shell select:-webkit-autofill:hover,
+.registration-shell select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f3efff;
+  caret-color: #f3efff;
+  box-shadow: 0 0 0px 1000px #1b1533 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}

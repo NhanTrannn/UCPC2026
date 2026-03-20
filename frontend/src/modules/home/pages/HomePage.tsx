@@ -28,11 +28,11 @@ function HomePage() {
         <FadeInSection delay={0.12}>
           <Awards />
         </FadeInSection>
-        <FadeInSection delay={0.14}>
-          <Sponsors />
-        </FadeInSection>
         <FadeInSection delay={0.16}>
           <UITInformation />
+        </FadeInSection>
+        <FadeInSection delay={0.14}>
+          <Sponsors />
         </FadeInSection>
         <FadeInSection delay={0.06}>
           <Footer />

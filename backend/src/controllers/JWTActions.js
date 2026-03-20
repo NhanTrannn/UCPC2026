@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const publicRoutes = ['/login', '/register', '/forgot-password', '/resetPasswordByUser'];
 //const adminRoutes = ['/resetPassword/:id', '/updateInfo', '/getAllHelpRequest', '/getHelpRequestById/:id', '/solveHelpRequest', '/getAllUser', '/getUserById/:id', '/deleteUser/:id', '/confirmPayment/:id', '/searchByEmail', '/filterUnPaid', '/filterPaid', '/filterSolved', '/filterUnSolved', '/filterIsUpdate'];
-const userRoutes = ['/update-info', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id', '/deleteHelpRequest/:id'];
+const userRoutes = ['/update-info', '/upload-payment-proof', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id', '/deleteHelpRequest/:id', '/getCurrentUserProfile'];
 const { checkWL } = require('./checkWhiteList');
 const generateToken = (payload) => {
     let token = '';

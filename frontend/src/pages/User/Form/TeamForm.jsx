@@ -1,122 +1,121 @@
-import { ErrorMessage, Field } from 'formik';
-
-// Một component bao bọc react-select để tích hợp với Formik
-// color: 'text-[#492A51]', bg-[#492A51]
+import { ErrorMessage, Field, useFormikContext } from 'formik';
 
 function TeamForm() {
+  const { values, setFieldValue } = useFormikContext();
+  const fieldClassName =
+    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-sm text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
 
   return (
-    <div className='w-full gap-1.5 space-y-3'>
-      <h1  className="text-[#492A51] text-3xl font-extrabold mx-auto w-fit mb-10 "> Đăng kí đội thi</h1>
-      {/* Team Name*/}
-      <div className="flex flex-col gap-1.5 mt-0 w-full max-w-md">
-        <label htmlFor="teamName" className="text-lg font-bold text-[#492A51]">
-          Tên đội thi
-        </label>
-
-        <Field
-          id="teamName"
-          name="teamName"
-          placeholder="VD: Chicken_Winner"
-          className="h-12 hover:border-[#AD2971] text-lg duration-200 border-2 w-full  border-gray-300 rounded px-2 py-2 bg-white focus:ring-2 focus:ring-[#8A65AC] focus:outline-none transition"
-        />
-
-        <div className="mt-0">
-          <ErrorMessage name={'teamName'}>
-            {(msg) => <div className="text-red-800 text-sm mt-1 font-style: italic">{msg}</div>}
-          </ErrorMessage>
-        </div>
-
-
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3 mt-0 w-full max-w-md py-0">
-        {/* Người hướng dẫn: */}
-        <div className="flex flex-col gap-1.5 mt-0 w-full max-w-md flex-[7]">
-          <label htmlFor="instructorName" className="text-lg font-bold text-[#492A51]">
-            Người đại diện
-          </label>
-          <Field
-            id="instructorName"
-            name="instructorName"
-            placeholder="VD: Nguyễn Văn A"
-            className="h-12 hover:border-[#AD2971] text-lg duration-200 border-2 w-full border-gray-300 rounded px-2 py-2 bg-white focus:ring-2 focus:ring-[#8A65AC] focus:outline-none transition"
-          />
-          <div className=" mt-0">
-            <ErrorMessage name={'instructorName'}>
-              {(msg) => <div className="text-red-800 text-sm mt-1 font-style: italic">{msg}</div>}
-            </ErrorMessage>
-          </div>
-
-        </div>
-
-
-
-        {/* Level, cấp độ, bảng thi */}
-        <div className="flex flex-col gap-1.5 mt-0 w-full max-w-md flex-[3]">
-          <label htmlFor="level" className="text-lg font-bold text-[#492A51]">
-             Bảng thi
-          </label>
-          <Field
-            as="select"
-            id="level"
-            name="level"
-            className="h-12 hover:border-[#AD2971] text-lg duration-200 border-2 w-full border-gray-300 rounded px-1 py-2 bg-white focus:ring-2 focus:ring-[#8A65AC] focus:outline-none transition"
+    <div className="space-y-6">
+      <section className="rounded-xl border border-violet-200/15 bg-[#120d25] p-4 md:p-5">
+        <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-xl font-bold">Loại hình tham gia</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setFieldValue('level', 'university')}
+            className={`rounded-lg border p-4 text-left transition ${values.level === 'university'
+              ? 'border-[#d9c2ff] bg-[#2b214d] shadow-[0_0_0_1px_rgba(217,194,255,0.2)]'
+              : 'border-[#3a2d60] bg-[#16102b] hover:border-[#8772c9]'
+              }`}
           >
-            <option value="">--------</option>
-            <option value="highschool">Trung học</option>
-            <option value="university">Đại học</option>
-          </Field>
-          <div className="mt-0">
-            <ErrorMessage name={'level'}>
-              {(msg) => <div className="text-red-800 text-sm mt-1 font-style: italic">{msg}</div>}
+            <p className="text-sm font-bold">Sinh viên (Đại học)</p>
+            <p className="mt-1 text-xs text-[#988dbf]">Dành cho sinh viên thuộc trường Đại học, Cao đẳng</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFieldValue('level', 'highschool')}
+            className={`rounded-lg border p-4 text-left transition ${values.level === 'highschool'
+              ? 'border-[#d9c2ff] bg-[#2b214d] shadow-[0_0_0_1px_rgba(217,194,255,0.2)]'
+              : 'border-[#3a2d60] bg-[#16102b] hover:border-[#8772c9]'
+              }`}
+          >
+            <p className="text-sm font-bold">Học sinh (THPT)</p>
+            <p className="mt-1 text-xs text-[#988dbf]">Dành cho học sinh các trường Trung học Phổ thông</p>
+          </button>
+        </div>
+        <ErrorMessage name={'level'}>
+          {(msg) => <div className="mt-2 text-sm font-medium text-red-300">{msg}</div>}
+        </ErrorMessage>
+      </section>
+
+      <section className="rounded-xl border border-violet-200/15 bg-[#120d25] p-4 md:p-5">
+        <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-xl font-bold">Thông tin chung</h2>
+
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-[#d6cff5]">Vai trò người đại diện</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setFieldValue('representativeRole', 'LEADER')}
+              className={`rounded-lg border p-3 text-left text-sm font-semibold transition ${values.representativeRole === 'LEADER'
+                ? 'border-[#d9c2ff] bg-[#2b214d] text-[#f3efff] shadow-[0_0_0_1px_rgba(217,194,255,0.2)]'
+                : 'border-[#3a2d60] bg-[#16102b] text-[#bfb5df] hover:border-[#8772c9]'
+                }`}
+            >
+              Nhóm trưởng
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFieldValue('representativeRole', 'COACH')}
+              className={`rounded-lg border p-3 text-left text-sm font-semibold transition ${values.representativeRole === 'COACH'
+                ? 'border-[#d9c2ff] bg-[#2b214d] text-[#f3efff] shadow-[0_0_0_1px_rgba(217,194,255,0.2)]'
+                : 'border-[#3a2d60] bg-[#16102b] text-[#bfb5df] hover:border-[#8772c9]'
+                }`}
+            >
+              Huấn luyện viên
+            </button>
+          </div>
+          <ErrorMessage name={'representativeRole'}>
+            {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
+          </ErrorMessage>
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="teamName" className="text-sm font-semibold text-[#d6cff5]">
+            Tên đội thi <span className="font-normal text-[#8f86b4]">(VD: ABC TEAM)</span>
+          </label>
+          <Field id="teamName" name="teamName" className={fieldClassName} />
+          <ErrorMessage name={'teamName'}>
+            {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
+          </ErrorMessage>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <label htmlFor="instructorName" className="text-sm font-semibold text-[#d6cff5]">
+              {values.representativeRole === 'LEADER' ? 'Họ và tên nhóm trưởng' : 'Họ và tên HLV'}{' '}
+              <span className="font-normal text-[#8f86b4]">(VD: NGUYỄN VĂN A)</span>
+            </label>
+            <Field id="instructorName" name="instructorName" className={fieldClassName} />
+            <ErrorMessage name={'instructorName'}>
+              {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
+            </ErrorMessage>
+          </div>
+
+          <div>
+            <label htmlFor="instructorPhone" className="text-sm font-semibold text-[#d6cff5]">
+              {values.representativeRole === 'LEADER' ? 'Số điện thoại nhóm trưởng' : 'Số điện thoại HLV'}{' '}
+              <span className="font-normal text-[#8f86b4]">(VD: 0912345678)</span>
+            </label>
+            <Field id="instructorPhone" name="instructorPhone" className={fieldClassName} />
+            <ErrorMessage name={'instructorPhone'}>
+              {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
             </ErrorMessage>
           </div>
         </div>
-      </div>
 
-
-      {/* Thông tin người đại diện */}
-<div className="flex flex-col sm:flex-row gap-3 mt-0 w-full max-w-md py-0">
-      <div className="flex flex-col  gap-1.5 mt-0 w-full max-w-md flex-[6]">
-        <label htmlFor="instructorEmail" className="text-lg font-bold text-[#492A51]">
-          Email
-        </label>
-        <Field
-          id="instructorEmail"
-          name="instructorEmail"
-          placeholder="VD: abc@gmail.com"
-          className="h-12 hover:border-[#AD2971] text-lg  duration-200 border-2 w-full border-gray-300 rounded px-2 py-2 bg-white focus:ring-2 focus:ring-[#8A65AC] focus:outline-none transition"
-        />
-        <div className="mt-0">
+        <div className="mt-4">
+          <label htmlFor="instructorEmail" className="text-sm font-semibold text-[#d6cff5]">
+            Email người đại diện <span className="font-normal text-[#8f86b4]">(VD: abc@gmail.com)</span>
+          </label>
+          <Field id="instructorEmail" name="instructorEmail" className={fieldClassName} />
           <ErrorMessage name={'instructorEmail'}>
-            {(msg) => <div className="text-red-800 text-sm mt-1 font-style: italic">{msg}</div>}
+            {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
           </ErrorMessage>
         </div>
-      </div>
-      <div className="flex flex-col gap-1.5 mt-0 w-full max-w-md flex-[3]">
-
-        <label htmlFor="instructorPhone" className="text-lg font-bold text-[#492A51]">
-          SĐT
-        </label>
-        <Field
-          id="instructorPhone"
-          name="instructorPhone"
-          placeholder="VD: 0123456789"
-          className="h-12 hover:border-[#AD2971] text-lg duration-200 border-2 w-full border-gray-300 rounded px-2 py-2 bg-white focus:ring-2 focus:ring-[#8A65AC] focus:outline-none transition"
-        />
-        <div className="mt-0">
-          <ErrorMessage name={'instructorPhone'}>
-            {(msg) => <div className="text-red-800 text-sm mt-1 font-style: italic">{msg}</div>}
-          </ErrorMessage>
-        </div>
-      </div>
-      </div>
-
-
-
-
-
+      </section>
     </div>
   );
 }

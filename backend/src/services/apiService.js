@@ -25,6 +25,151 @@ const ReplaceVariable = (htmlContent, dynamicData) => {
     return htmlContent;
 }
 
+const REPRESENTATIVE_ROLE = {
+    LEADER: 'LEADER',
+    COACH: 'COACH'
+};
+
+const normalizeString = (value) => {
+    if (typeof value !== 'string') return '';
+    return value.trim();
+};
+
+const pickFirstNonEmpty = (...values) => {
+    for (const value of values) {
+        const normalized = normalizeString(value);
+        if (normalized) return normalized;
+    }
+    return null;
+};
+
+const parseRepresentativeRole = (rawRole) => {
+    const role = normalizeString(rawRole).toUpperCase();
+    if (role === REPRESENTATIVE_ROLE.LEADER || role === REPRESENTATIVE_ROLE.COACH) {
+        return role;
+    }
+    return null;
+};
+
+const buildCoachRepresentativePayload = (data) => ({
+    role: REPRESENTATIVE_ROLE.COACH,
+    fullName: pickFirstNonEmpty(data?.coachName, data?.coach?.fullName, data?.trainerName),
+    phone: pickFirstNonEmpty(data?.coachPhone, data?.coach?.phone, data?.trainerPhone),
+    email: pickFirstNonEmpty(data?.coachEmail, data?.coach?.email),
+    citizenId: pickFirstNonEmpty(data?.coachCitizenId, data?.coach?.citizenId)
+});
+
+const buildLeaderRepresentativePayload = (data) => {
+    const firstParticipant = data?.Participants?.[0] || {};
+
+    return {
+        role: REPRESENTATIVE_ROLE.LEADER,
+        fullName: pickFirstNonEmpty(data?.leaderName, data?.leader?.fullName, firstParticipant?.fullName),
+        phone: pickFirstNonEmpty(data?.leaderPhone, data?.leader?.phone, firstParticipant?.phone),
+        email: pickFirstNonEmpty(data?.leaderEmail, data?.leader?.email),
+        citizenId: pickFirstNonEmpty(data?.leaderCitizenId, data?.leader?.citizenId, firstParticipant?.citizenId)
+    };
+};
+
+const upsertTeamRepresentative = async (teamId, payload, transaction) => {
+    const hasData = !!(payload.fullName || payload.phone || payload.email || payload.citizenId);
+
+    if (!hasData) {
+        await db.Representative.destroy({
+            where: {
+                teamId,
+                role: payload.role
+            },
+            transaction
+        });
+        return;
+    }
+
+    const representative = await db.Representative.findOne({
+        where: {
+            teamId,
+            role: payload.role
+        },
+        transaction
+    });
+
+    if (representative) {
+        await db.Representative.update({
+            fullName: payload.fullName,
+            phone: payload.phone,
+            email: payload.email,
+            citizenId: payload.citizenId
+        }, {
+            where: {
+                teamId,
+                role: payload.role
+            },
+            transaction
+        });
+        return;
+    }
+
+    await db.Representative.create({
+        teamId,
+        role: payload.role,
+        fullName: payload.fullName,
+        phone: payload.phone,
+        email: payload.email,
+        citizenId: payload.citizenId
+    }, { transaction });
+};
+
+const upsertTeamRepresentatives = async (teamId, data, transaction) => {
+    const explicitRole = parseRepresentativeRole(data?.representativeRole);
+    const hasLeaderInput = !!(
+        normalizeString(data?.leaderName) ||
+        normalizeString(data?.leaderPhone) ||
+        normalizeString(data?.leaderEmail) ||
+        normalizeString(data?.leaderCitizenId)
+    );
+
+    const selectedRole = explicitRole || (hasLeaderInput ? REPRESENTATIVE_ROLE.LEADER : REPRESENTATIVE_ROLE.COACH);
+
+    const selectedPayload = selectedRole === REPRESENTATIVE_ROLE.LEADER
+        ? buildLeaderRepresentativePayload(data)
+        : buildCoachRepresentativePayload(data);
+
+    const oppositeRole = selectedRole === REPRESENTATIVE_ROLE.LEADER
+        ? REPRESENTATIVE_ROLE.COACH
+        : REPRESENTATIVE_ROLE.LEADER;
+
+    await upsertTeamRepresentative(teamId, selectedPayload, transaction);
+    await db.Representative.destroy({
+        where: {
+            teamId,
+            role: oppositeRole
+        },
+        transaction
+    });
+};
+
+const getTeamRepresentativesMap = async (teamId) => {
+    const rows = await db.Representative.findAll({
+        where: { teamId },
+        attributes: ['role', 'fullName', 'phone', 'email', 'citizenId'],
+        raw: true
+    });
+
+    return rows.reduce((acc, row) => {
+        acc[row.role] = {
+            fullName: row.fullName,
+            phone: row.phone,
+            email: row.email,
+            citizenId: row.citizenId
+        };
+        return acc;
+    }, {});
+};
+
+const getCoachName = (processData, representativesMap) => {
+    return representativesMap?.[REPRESENTATIVE_ROLE.COACH]?.fullName || processData?.trainerName || null;
+};
+
 const generatePIN = (PinLength) => {
     // Khai báo một biến để lưu trữ mã PIN
     let pin = '';
@@ -164,6 +309,8 @@ const apiLoginService = async (email, password) => {
                         birth: DateToString(participant.birth)
                     }
                 });
+                const representatives = await getTeamRepresentativesMap(teamData.id);
+                const coachName = getCoachName(detailData, representatives);
 
                 let data = {
                     id: accountInfo.id,
@@ -175,7 +322,9 @@ const apiLoginService = async (email, password) => {
                     isPaid: detailData.isPaid,
                     isUpdate: detailData.isUpdate,
                     isHighSchool: detailData.isHighSchool,
-                    trainerName: detailData.trainerName,
+                    trainerName: coachName,
+                    trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+                    representatives,
                     teamName: teamData.teamName,
                     Participants: [...participantData2]
                 };
@@ -440,7 +589,8 @@ const apiUpdateInfoService = async (data) => {
                 paidImage: data.paidImage ? data.paidImage : null,
                 isPaid: false,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null
+                trainerName: buildCoachRepresentativePayload(data).fullName,
+                rejectionReason: null
             }, { transaction });
 
         }
@@ -456,7 +606,8 @@ const apiUpdateInfoService = async (data) => {
             await db.Process.update({
                 paidImage: data.paidImage ? data.paidImage : null,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null
+                trainerName: buildCoachRepresentativePayload(data).fullName,
+                rejectionReason: null
             }, {
                 where: {
                     teamId: team.id
@@ -476,6 +627,8 @@ const apiUpdateInfoService = async (data) => {
                 schoolName: participant.schoolName || null
             }, { transaction });
         }
+        await upsertTeamRepresentatives(team.id, data, transaction);
+
         await db.Process.update({
             isUpdate: 1
         }, {
@@ -535,6 +688,8 @@ const apiUpdateInfoService = async (data) => {
                 birth: DateToString(participant.birth)
             }
         });
+        const representatives = await getTeamRepresentativesMap(team.id);
+        const coachName = getCoachName(detailDataTemp, representatives);
         //console.log('check parti: ', participantDataTemp);
         let dataTemp = {
             id: accountInfoTemp.id,
@@ -546,7 +701,9 @@ const apiUpdateInfoService = async (data) => {
             isPaid: detailDataTemp.isPaid,
             isUpdate: detailDataTemp.isUpdate,
             isHighSchool: detailDataTemp.isHighSchool,
-            trainerName: detailDataTemp.trainerName,
+            trainerName: coachName,
+            trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+            representatives,
             teamName: teamDataTemp.teamName,
             Participants: [...participantDataTemp2]
         };
@@ -610,6 +767,86 @@ const apiSendHelpRequestService = async (userId, title, data) => {
 
 
 
+}
+
+const apiUploadPaymentProofService = async (data) => {
+    if (!data || !data.userId) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
+    if (!data.paidImage || String(data.paidImage).trim() === '') {
+        return {
+            EM: 'Missing paid image',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    let team = await db.Team.findOne({
+        where: {
+            userId: data.userId
+        },
+        attributes: ['id'],
+        raw: true
+    });
+
+    if (!team) {
+        return {
+            EM: 'This user has not updated info yet',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    let process = await db.Process.findOne({
+        where: {
+            teamId: team.id
+        },
+        raw: true
+    });
+
+    if (!process) {
+        return {
+            EM: 'There is something wrong, please try again',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    if (process.isPaid === true) {
+        return {
+            EM: 'Payment has been confirmed before',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    try {
+        await db.Process.update({
+            paidImage: data.paidImage,
+            rejectionReason: null
+        }, {
+            where: {
+                teamId: team.id
+            }
+        });
+
+        return {
+            EM: 'Upload payment proof success',
+            EC: 0,
+            DT: ''
+        }
+    } catch (error) {
+        return {
+            EM: 'Upload payment proof failed',
+            EC: 500,
+            DT: ''
+        }
+    }
 }
 const apiChangePasswordService = async (requester, password, newPassword) => {
 
@@ -985,7 +1222,7 @@ const apiGetUserByIdService = async (id) => {
             where: {
                 teamId: teamData.id
             },
-            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName', 'rejectionReason'],
             raw: true
         });
         let participantData = await db.Participant.findAll({
@@ -1001,6 +1238,8 @@ const apiGetUserByIdService = async (id) => {
                 birth: DateToString(participant.birth)
             }
         });
+        const representatives = await getTeamRepresentativesMap(teamData.id);
+        const coachName = getCoachName(detailData, representatives);
 
         let data = {
             id: accountInfo.id,
@@ -1011,7 +1250,10 @@ const apiGetUserByIdService = async (id) => {
             isPaid: detailData.isPaid,
             isUpdate: detailData.isUpdate,
             isHighSchool: detailData.isHighSchool,
-            trainerName: detailData.trainerName,
+            trainerName: coachName,
+            trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+            representatives,
+            rejectionReason: detailData.rejectionReason,
             teamName: teamData.teamName,
             Participants: [...participantData2]
         };
@@ -1059,6 +1301,7 @@ const apiDeleteUserService = async (id) => {
         if (teamId) {
             await db.Process.destroy({ where: { teamId: teamId }, transaction });
             await db.Participant.destroy({ where: { teamId: teamId }, transaction });
+            await db.Representative.destroy({ where: { teamId: teamId }, transaction });
             await db.Request.destroy({ where: { teamId: teamId }, transaction });
             await db.Team.destroy({ where: { userId: id }, transaction });
         }
@@ -1491,20 +1734,22 @@ const apiUpdateUserByAdminService = async (data) => {
                 paidImage: data.paidImage ? data.paidImage : null,
                 isPaid: false,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null,
+                trainerName: buildCoachRepresentativePayload(data).fullName,
                 isUpdate: 1
             }, { transaction });
         } else {
             await db.Process.update({
                 paidImage: data.paidImage ? data.paidImage : null,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null,
+                trainerName: buildCoachRepresentativePayload(data).fullName,
                 isUpdate: 1
             }, {
                 where: { teamId: team.id },
                 transaction
             });
         }
+
+        await upsertTeamRepresentatives(team.id, data, transaction);
 
         await transaction.commit();
     } catch (error) {
@@ -1828,6 +2073,67 @@ const apiResetPasswordByUserService = async (email, PIN, newPassword) => {
         }
     }
 }
+
+const getTeamStatusFromProcess = (process) => {
+    if (process?.isUpdate === true && process?.isPaid === true) {
+        return 'Đã duyệt';
+    }
+
+    if (process?.isUpdate === true) {
+        return 'Chờ duyệt';
+    }
+
+    return 'Khởi tạo';
+}
+
+const mapStatusToProcessFlags = (status, rejectionReason) => {
+    if (status === 'Đã duyệt') {
+        return {
+            isUpdate: true,
+            isPaid: true,
+            rejectionReason: null
+        };
+    }
+
+    if (status === 'Chờ duyệt') {
+        return {
+            isUpdate: true,
+            isPaid: false,
+            rejectionReason: rejectionReason && String(rejectionReason).trim().length > 0
+                ? String(rejectionReason).trim()
+                : null
+        };
+    }
+
+    if (status === 'Khởi tạo') {
+        return {
+            isUpdate: false,
+            isPaid: false,
+            rejectionReason: null
+        };
+    }
+
+    return null;
+}
+
+const buildTeamSchoolLabel = (participantRows, fallbackIsHighSchool) => {
+    const schoolSet = new Set();
+
+    participantRows.forEach((participant) => {
+        const schoolName = (participant.schoolName || '').trim();
+        if (schoolName) {
+            schoolSet.add(schoolName);
+        }
+    });
+
+    const schools = Array.from(schoolSet);
+    if (schools.length > 0) {
+        return schools.join('\n');
+    }
+
+    return fallbackIsHighSchool ? 'Khối THPT' : 'Khối Đại học';
+}
+
 const apiGetDashBoardService = async () => {
 
     /**
@@ -1855,11 +2161,48 @@ const apiGetDashBoardService = async () => {
             }
         });
 
-        const totalUnpaid = await db.Process.count({
+        const dashboardUsers = await db.User.findAll({
             where: {
-                isPaid: false,
+                role: 'USER'
             },
+            attributes: ['id', 'email', 'username'],
+            include: [
+                {
+                    model: db.Team,
+                    attributes: ['id', 'teamName'],
+                    required: false,
+                    include: [
+                        {
+                            model: db.Process,
+                            attributes: ['isPaid', 'isUpdate'],
+                            required: false
+                        }
+                    ]
+                }
+            ],
+            raw: true
         });
+
+        const unpaidAccounts = dashboardUsers
+            .filter((user) => user['Team.Process.isPaid'] !== true)
+            .map((user) => {
+                const process = {
+                    isPaid: user['Team.Process.isPaid'],
+                    isUpdate: user['Team.Process.isUpdate']
+                };
+
+                return {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    teamName: user['Team.teamName'] && user['Team.teamName'].trim().length > 0
+                        ? user['Team.teamName']
+                        : 'Chưa cập nhật',
+                    status: getTeamStatusFromProcess(process)
+                };
+            });
+
+        const totalUnpaid = unpaidAccounts.length;
 
         const totalUnsolvedRequest = await db.Request.count({
             where: {
@@ -1873,18 +2216,6 @@ const apiGetDashBoardService = async () => {
             }
         });
 
-        const totalHighSchool = await db.Process.count({
-            where: {
-                isHighSchool: true
-            }
-        });
-
-        const totalUniversity = await db.Process.count({
-            where: {
-                isHighSchool: false
-            }
-        });
-
         const totalRegisteredTeams = await db.Team.count({
             where: {
                 teamName: {
@@ -1893,15 +2224,76 @@ const apiGetDashBoardService = async () => {
             }
         });
 
-        const totalSchools = await db.Participant.count({
-            distinct: true,
-            col: 'schoolName',
+        const participantSchools = await db.Participant.findAll({
             where: {
                 schoolName: {
-                    [Op.not]: null
+                    [Op.not]: null,
+                    [Op.ne]: ''
                 }
+            },
+            attributes: ['teamId', 'schoolName'],
+            raw: true
+        });
+
+        const processRows = await db.Process.findAll({
+            attributes: ['teamId', 'isHighSchool'],
+            raw: true
+        });
+
+        const teamBlockMap = new Map();
+        processRows.forEach((processItem) => {
+            teamBlockMap.set(processItem.teamId, processItem.isHighSchool);
+        });
+
+        const allSchoolSet = new Set();
+        const highSchoolSet = new Set();
+        const universitySet = new Set();
+        const schoolTeamsMap = new Map();
+
+        participantSchools.forEach((item) => {
+            const schoolName = (item.schoolName || '').trim();
+            if (!schoolName) {
+                return;
+            }
+
+            const teamId = item.teamId;
+            if (!schoolTeamsMap.has(schoolName)) {
+                schoolTeamsMap.set(schoolName, new Set());
+            }
+
+            if (teamId) {
+                schoolTeamsMap.get(schoolName).add(teamId);
+            }
+
+            allSchoolSet.add(schoolName);
+
+            const isHighSchool = teamBlockMap.get(teamId);
+
+            if (isHighSchool === true) {
+                highSchoolSet.add(schoolName);
+                return;
+            }
+
+            if (isHighSchool === false) {
+                universitySet.add(schoolName);
             }
         });
+
+        const totalSchools = allSchoolSet.size;
+        const totalHighSchool = highSchoolSet.size;
+        const totalUniversity = universitySet.size;
+        const participatingSchools = Array.from(schoolTeamsMap.entries())
+            .map(([name, teamIds]) => ({
+                name,
+                teams: teamIds.size
+            }))
+            .sort((left, right) => {
+                if (right.teams !== left.teams) {
+                    return right.teams - left.teams;
+                }
+
+                return left.name.localeCompare(right.name, 'vi');
+            });
 
         const allTeams = await db.Team.findAll({
             where: {
@@ -1922,8 +2314,9 @@ const apiGetDashBoardService = async () => {
                 attributes: ['isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
                 raw: true
             });
+            const representatives = await getTeamRepresentativesMap(team.id);
 
-            const participant = await db.Participant.findOne({
+            const participants = await db.Participant.findAll({
                 where: {
                     teamId: team.id,
                     schoolName: {
@@ -1935,18 +2328,13 @@ const apiGetDashBoardService = async () => {
                 raw: true
             });
 
-            let status = 'Khởi tạo';
-            if (process?.isUpdate === true && process?.isPaid === true) {
-                status = 'Đã duyệt';
-            } else if (process?.isUpdate === true) {
-                status = 'Chờ duyệt';
-            }
+            const status = getTeamStatusFromProcess(process);
 
             return {
                 id: team.id,
                 name: team.teamName,
-                coach: process?.trainerName || 'Chưa cập nhật',
-                school: participant?.schoolName || (process?.isHighSchool ? 'Khối THPT' : 'Khối Đại học'),
+                coach: representatives?.[REPRESENTATIVE_ROLE.COACH]?.fullName || process?.trainerName || 'Chưa cập nhật',
+                school: buildTeamSchoolLabel(participants, process?.isHighSchool),
                 status,
                 createdAt: team.createdAt,
                 updatedAt: team.updatedAt
@@ -1968,6 +2356,8 @@ const apiGetDashBoardService = async () => {
             totalSchools,
             totalHighSchool,
             totalUniversity,
+            participatingSchools,
+            unpaidAccounts,
             recentTeams,
             allTeams: allTeamsData
         };
@@ -2016,7 +2406,7 @@ const apiGetTeamDetailService = async (teamId) => {
             where: {
                 teamId: team.id
             },
-            attributes: ['isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName', 'rejectionReason'],
             raw: true
         });
 
@@ -2033,16 +2423,11 @@ const apiGetTeamDetailService = async (teamId) => {
             ...participant,
             birth: participant.birth ? DateToString(new Date(participant.birth)) : null
         }));
+        const representatives = await getTeamRepresentativesMap(team.id);
 
-        let status = 'Khởi tạo';
-        if (process?.isUpdate === true && process?.isPaid === true) {
-            status = 'Đã duyệt';
-        } else if (process?.isUpdate === true) {
-            status = 'Chờ duyệt';
-        }
+        const status = getTeamStatusFromProcess(process);
 
-        const school = participantsData.find((member) => member.schoolName)?.schoolName
-            || (process?.isHighSchool ? 'Khối THPT' : 'Khối Đại học');
+        const school = buildTeamSchoolLabel(participantsData, process?.isHighSchool);
 
         return {
             EM: 'Get team detail success',
@@ -2051,8 +2436,16 @@ const apiGetTeamDetailService = async (teamId) => {
                 id: team.id,
                 userId: team.userId,
                 teamName: team.teamName,
-                coach: process?.trainerName || 'Chưa cập nhật',
+                coach: representatives?.[REPRESENTATIVE_ROLE.COACH]?.fullName || process?.trainerName || 'Chưa cập nhật',
+                coachPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+                representative: {
+                    leader: representatives?.[REPRESENTATIVE_ROLE.LEADER] || null,
+                    coach: representatives?.[REPRESENTATIVE_ROLE.COACH] || null
+                },
                 school,
+                paidImage: process?.paidImage || null,
+                isPaid: process?.isPaid ?? null,
+                rejectionReason: process?.rejectionReason || null,
                 isHighSchool: process?.isHighSchool ?? null,
                 status,
                 participants: participantsData,
@@ -2119,6 +2512,13 @@ const apiDeleteTeamService = async (teamId) => {
             transaction
         });
 
+        await db.Representative.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
         await db.Team.destroy({
             where: {
                 id: team.id
@@ -2137,6 +2537,93 @@ const apiDeleteTeamService = async (teamId) => {
         await transaction.rollback();
         return {
             EM: 'Delete team failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+}
+
+const apiUpdateTeamStatusService = async (teamId, status, rejectionReason) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const mappedFlags = mapStatusToProcessFlags(status, rejectionReason);
+    if (!mappedFlags) {
+        return {
+            EM: 'Invalid status',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const transaction = await db.sequelize.transaction();
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id'],
+            transaction
+        });
+
+        if (!team) {
+            await transaction.rollback();
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        const process = await db.Process.findOne({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['id'],
+            transaction
+        });
+
+        if (!process) {
+            await db.Process.create({
+                teamId: team.id,
+                paidImage: null,
+                isHighSchool: false,
+                trainerName: null,
+                ...mappedFlags
+            }, { transaction });
+        }
+        else {
+            await db.Process.update({
+                ...mappedFlags
+            }, {
+                where: {
+                    teamId: team.id
+                },
+                transaction
+            });
+        }
+
+        await transaction.commit();
+
+        return {
+            EM: 'Update team status success',
+            EC: 0,
+            DT: {
+                teamId: Number(teamId),
+                status,
+                ...mappedFlags
+            }
+        };
+    } catch (error) {
+        await transaction.rollback();
+        return {
+            EM: 'Update team status failed',
             EC: 500,
             DT: ''
         };
@@ -2476,11 +2963,13 @@ module.exports = {
     apiGetDashBoardService,
     apiGetTeamDetailService,
     apiDeleteTeamService,
+    apiUpdateTeamStatusService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,
     apiSetDefaultTemplateMailService,
     apiGetTypesMailService,
     apiSendMailWithTemplateService,
-    apiSendEmailExampleService
+    apiSendEmailExampleService,
+    apiUploadPaymentProofService
 }

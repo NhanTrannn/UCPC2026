@@ -4,4 +4,6 @@ export interface AuthUser {
   id: string;
   name: string;
   role: Role;
+  teamName?: string;
+  hasTeam?: boolean;
 }

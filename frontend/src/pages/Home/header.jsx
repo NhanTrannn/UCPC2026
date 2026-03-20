@@ -1,20 +1,52 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { logout } from '../../app/redux/auth.slice';
+import { useAppDispatch, useAppSelector } from '../../app/redux/hooks';
 
 const navLinks = [
   { href: '#News', label: 'Tin tức' },
   { href: '#Rules', label: 'Thể lệ' },
   { href: '#Pricing', label: 'Giải thưởng' },
+  { href: '#Info', label: 'Thông tin' },
   { href: '#Investor', label: 'Nhà tài trợ' },
 ];
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    const onDocumentClick = (event) => {
+      if (!profileRef.current?.contains(event.target)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onDocumentClick);
+    return () => {
+      document.removeEventListener('mousedown', onDocumentClick);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    dispatch(logout());
+    setMenuOpen(false);
+    setProfileOpen(false);
+    navigate('/', { replace: true });
+  };
+
+  const showTeamActions = isAuthenticated && user?.role === 'USER';
+  const showAdminActions = isAuthenticated && (user?.role === 'ADMIN' || user?.role === 'STAFF');
+  const showTeamRegistrationAction = showTeamActions && !user?.hasTeam;
 
   return (
     <div>
       <div className="fixed top-0 z-50 w-full border-b border-zinc-800 bg-black/80 backdrop-blur supports-[backdrop-filter]:bg-black/60">
-        <div className="w-full px-4 md:px-10 flex h-16 items-center justify-between">
+        <div className="relative w-full px-4 md:px-10 flex h-16 items-center justify-between">
           {/* Logo + tên */}
           <div className="flex items-center gap-2">
             <svg
@@ -37,7 +69,7 @@ function Header() {
           </div>
 
           {/* Nav links - desktop */}
-          <nav className="hidden md:flex gap-6">
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-6">
             {navLinks.map((item) => (
               <a
                 key={item.href}
@@ -49,20 +81,76 @@ function Header() {
             ))}
           </nav>
 
-          {/* Đăng nhập + CTA + Hamburger */}
+          {/* Auth actions + Hamburger */}
           <div className="flex items-center gap-4">
-            <Link
-              to="/login"
-              className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden sm:block"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              to="/register"
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 h-10 px-4 py-2"
-            >
-              Đăng kí
-            </Link>
+            {isAuthenticated ? (
+              <div className="relative hidden sm:block" ref={profileRef}>
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 text-sm text-zinc-100 hover:border-zinc-500"
+                >
+                  <span>Xin chào, {user?.name || 'bạn'}</span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-600 text-sm font-semibold text-white">
+                    {(user?.name || 'U').charAt(0).toUpperCase()}
+                  </span>
+                </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-700 bg-zinc-900/95 p-2 shadow-2xl">
+                    {showAdminActions && (
+                      <Link
+                        to="/dashboard"
+                        onClick={() => setProfileOpen(false)}
+                        className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
+                      >
+                        Dashboard
+                      </Link>
+                    )}
+                    {showTeamActions && (
+                      <Link
+                        to="/user/dashboard"
+                        onClick={() => setProfileOpen(false)}
+                        className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
+                      >
+                        Dashboard user
+                      </Link>
+                    )}
+                    {showTeamRegistrationAction && (
+                      <Link
+                        to="/user"
+                        onClick={() => setProfileOpen(false)}
+                        className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
+                      >
+                        Đăng ký team
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                    >
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden sm:block"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 h-10 px-4 py-2"
+                >
+                  Đăng kí
+                </Link>
+              </>
+            )}
             {/* Hamburger - chỉ hiện trên mobile */}
             <button
               className="md:hidden flex flex-col justify-center items-center gap-1.5 w-8 h-8"
@@ -89,13 +177,62 @@ function Header() {
                 {item.label}
               </a>
             ))}
-            <Link
-              to="/login"
-              onClick={() => setMenuOpen(false)}
-              className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1 sm:hidden"
-            >
-              Đăng nhập
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <p className="text-sm text-zinc-300">Xin chào, {user?.name || 'bạn'}</p>
+                {showAdminActions && (
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                    className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1"
+                  >
+                    Dashboard
+                  </Link>
+                )}
+                {showTeamActions && (
+                  <Link
+                    to="/user/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                    className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1"
+                  >
+                    Dashboard user
+                  </Link>
+                )}
+                {showTeamRegistrationAction && (
+                  <Link
+                    to="/user"
+                    onClick={() => setMenuOpen(false)}
+                    className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1"
+                  >
+                    Đăng ký team
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-left text-base font-medium text-zinc-300 hover:text-white transition-colors py-1"
+                >
+                  Đăng xuất
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1 sm:hidden"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-base font-medium text-zinc-300 hover:text-white transition-colors py-1"
+                >
+                  Đăng kí
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

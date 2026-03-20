@@ -69,12 +69,12 @@ export default function News() {
         >
             <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
                 {/* Header */}
-                <div className="flex flex-col items-center justify-center space-y-4 text-center">
+                <div className="relative z-20 flex flex-col items-center justify-center space-y-4 text-center">
                     <div className="space-y-2">
                         {/* <div className="inline-block rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-md text-white">
                             News
                         </div> */}
-                        <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
+                        <h2 className="block py-1 text-3xl font-bold tracking-tighter leading-[1.18] md:text-5xl md:leading-[1.12] bg-gradient-to-r from-white via-zinc-100 to-zinc-400 text-transparent bg-clip-text">
                             Tin tức và thông báo
                         </h2>
                         <p className="max-w-[900px] text-zinc-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">

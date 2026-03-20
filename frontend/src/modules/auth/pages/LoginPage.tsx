@@ -1,34 +1,31 @@
-import { FormEvent, useState } from 'react';
+import { Form, Formik } from 'formik';
 import { Link, useNavigate } from 'react-router-dom';
+import * as Yup from 'yup';
 import { loginSuccess } from '../../../app/redux/auth.slice';
 import { useAppDispatch } from '../../../app/redux/hooks';
 import { loginWithCredentials } from '../../../services/auth.service';
 
+type LoginFormValues = {
+  email: string;
+  password: string;
+};
+
+const loginValidationSchema = Yup.object({
+  email: Yup.string()
+    .trim()
+    .required('Email là bắt buộc.')
+    .email('Email không hợp lệ.'),
+  password: Yup.string().required('Mật khẩu là bắt buộc.'),
+});
+
 function LoginPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const user = await loginWithCredentials({ email, password });
-      dispatch(loginSuccess(user));
-      navigate('/user', { replace: true });
-    } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : 'Login failed';
-      setError(message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const initialValues: LoginFormValues = {
+    email: '',
+    password: '',
+  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-[#1f2937] via-[#2f1b45] to-[#492a51] px-4 py-16 text-white">
@@ -36,54 +33,96 @@ function LoginPage() {
         <h1 className="text-3xl font-bold">Đăng nhập</h1>
         <p className="mt-2 text-sm text-zinc-300">Đăng nhập bằng tài khoản đã tạo để vào khu vực người dùng.</p>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm text-zinc-200">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-zinc-600 bg-zinc-900/70 px-3 py-2 outline-none ring-0 transition focus:border-pink-500"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
+        <Formik
+          initialValues={initialValues}
+          validationSchema={loginValidationSchema}
+          validateOnBlur={true}
+          validateOnChange={true}
+          onSubmit={async (values, { setSubmitting, setStatus }) => {
+            setStatus(undefined);
+            try {
+              const user = await loginWithCredentials({
+                email: values.email.trim(),
+                password: values.password,
+              });
+              dispatch(loginSuccess(user));
+              navigate('/', { replace: true });
+            } catch (submitError) {
+              const message =
+                submitError instanceof Error ? submitError.message : 'Đăng nhập thất bại';
+              setStatus(message);
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        >
+          {({ values, errors, touched, isSubmitting, status, handleBlur, handleChange }) => (
+            <Form className="mt-6 space-y-4">
+              <div>
+                <label htmlFor="email" className="mb-1 block text-sm text-zinc-200">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={values.email}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className={`w-full rounded-lg border bg-zinc-900/70 px-3 py-2 outline-none ring-0 transition ${
+                    touched.email && errors.email
+                      ? 'border-red-400 focus:border-red-400'
+                      : 'border-zinc-600 focus:border-pink-500'
+                  }`}
+                  placeholder="you@example.com"
+                />
+                {touched.email && errors.email && (
+                  <p className="mt-1 text-sm text-red-300">{errors.email}</p>
+                )}
+              </div>
 
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm text-zinc-200">
-              Mật khẩu
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-zinc-600 bg-zinc-900/70 px-3 py-2 outline-none ring-0 transition focus:border-pink-500"
-              placeholder="••••••••"
-              required
-            />
-          </div>
+              <div>
+                <label htmlFor="password" className="mb-1 block text-sm text-zinc-200">
+                  Mật khẩu
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={values.password}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className={`w-full rounded-lg border bg-zinc-900/70 px-3 py-2 outline-none ring-0 transition ${
+                    touched.password && errors.password
+                      ? 'border-red-400 focus:border-red-400'
+                      : 'border-zinc-600 focus:border-pink-500'
+                  }`}
+                  placeholder="••••••••"
+                />
+                {touched.password && errors.password && (
+                  <p className="mt-1 text-sm text-red-300">{errors.password}</p>
+                )}
+              </div>
 
-          {error && <p className="text-sm text-red-300">{error}</p>}
+              {status && <p className="text-sm text-red-300">{status}</p>}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 font-semibold transition hover:from-purple-700 hover:to-pink-700 disabled:opacity-60"
-          >
-            {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
-          </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 font-semibold transition hover:from-purple-700 hover:to-pink-700 disabled:opacity-60"
+              >
+                {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
+              </button>
 
-          <p className="text-center text-sm text-zinc-300">
-            Chưa có tài khoản?{' '}
-            <Link className="font-semibold text-pink-300 hover:text-pink-200" to="/register">
-              Đăng ký ngay
-            </Link>
-          </p>
-        </form>
+              <p className="text-center text-sm text-zinc-300">
+                Chưa có tài khoản?{' '}
+                <Link className="font-semibold text-pink-300 hover:text-pink-200" to="/register">
+                  Đăng ký ngay
+                </Link>
+              </p>
+            </Form>
+          )}
+        </Formik>
       </div>
     </div>
   );

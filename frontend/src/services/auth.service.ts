@@ -1,6 +1,6 @@
 import type { AuthUser } from '../types/auth';
 import { ROLES } from '../utils/role';
-import { apiRequest } from './http';
+import { apiRequest, setAccessToken } from './http';
 
 export interface LoginPayload {
   email: string;
@@ -24,13 +24,34 @@ interface AuthApiData {
   email?: string;
   username?: string;
   role?: string;
+  teamName?: string;
+  isUpdate?: boolean | null;
+  access_token?: string;
+  accessToken?: string;
+  token?: string;
+}
+
+function extractAccessToken(data: AuthApiData | undefined): string | undefined {
+  if (!data) {
+    return undefined;
+  }
+
+  return data.access_token ?? data.accessToken ?? data.token;
 }
 
 function toAuthUser(data: AuthApiData): AuthUser {
+  const hasTeam = Boolean(
+    data.teamName &&
+      data.teamName !== 'Not updated yet / admin account' &&
+      data.isUpdate !== false
+  );
+
   return {
     id: String(data.id),
     name: data.username ?? data.email?.split('@')[0] ?? 'user',
     role: data.role === ROLES.ADMIN || data.role === ROLES.STAFF ? data.role : ROLES.USER,
+    teamName: data.teamName,
+    hasTeam,
   };
 }
 
@@ -50,6 +71,8 @@ export async function loginWithCredentials(
     throw new Error(response.EM || 'Login failed');
   }
 
+  setAccessToken(extractAccessToken(response.DT));
+
   return toAuthUser(response.DT);
 }
 
@@ -68,6 +91,8 @@ export async function registerWithCredentials(
   if (response.EC !== 0) {
     throw new Error(response.EM || 'Register failed');
   }
+
+  setAccessToken(extractAccessToken(response.DT));
 
   return toAuthUser(response.DT);
 }

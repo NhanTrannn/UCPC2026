@@ -6,7 +6,11 @@ import RegisterPage from './pages/RegisterPage';
 export const authPublicRoutes: RouteObject[] = [
   {
     path: 'register',
-    element: <RegisterPage />,
+    element: (
+      <GuestRoute>
+        <RegisterPage />
+      </GuestRoute>
+    ),
   },
   {
     path: 'login',

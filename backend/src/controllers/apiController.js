@@ -24,13 +24,15 @@
     apiGetDashBoardService,
     apiGetTeamDetailService,
     apiDeleteTeamService,
+    apiUpdateTeamStatusService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,
     apiSetDefaultTemplateMailService,
     apiGetTypesMailService,
     apiSendMailWithTemplateService,
-    apiSendEmailExampleService
+    apiSendEmailExampleService,
+    apiUploadPaymentProofService
 } = require('../services/apiService');
 
 const getHttpStatusFromResult = (result) => {
@@ -90,6 +92,22 @@ const apiUpdateInfoController = async (req, res) => {
         });
     }
 
+}
+const apiUploadPaymentProofController = async (req, res) => {
+    try {
+        const payload = {
+            ...req.body,
+            userId: req.user?.id ?? req.body?.userId
+        };
+        let result = await apiUploadPaymentProofService(payload);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
 }
 const apiSendHelpRequestController = async (req, res) => {
     try {
@@ -198,6 +216,19 @@ const apiGetAllUsersController = async (req, res) => {
 const apiGetUserByIdController = async (req, res) => {
     try {
         let id = req.params.id;
+        let result = await apiGetUserByIdService(id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
+const apiGetCurrentUserProfileController = async (req, res) => {
+    try {
+        let id = req.user?.id;
         let result = await apiGetUserByIdService(id);
         return sendResult(res, result);
     } catch (error) {
@@ -405,6 +436,24 @@ const apiDeleteTeamController = async (req, res) => {
         });
     }
 }
+
+const apiUpdateTeamStatusController = async (req, res) => {
+    try {
+        let id = req.params.id;
+        let status = req.body.status;
+        let rejectionReason = req.body.rejectionReason;
+        let result = await apiUpdateTeamStatusService(+id, status, rejectionReason);
+        return sendResult(res, result);
+
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+
+    }
+}
 const apiGetHelpByUserController = async (req, res) => {
     try {
         let id = req.params.id;
@@ -523,6 +572,7 @@ module.exports = {
     apiLoginController,
     apiRegisterController,
     apiUpdateInfoController,
+    apiUploadPaymentProofController,
     apiSendHelpRequestController,
     apiChangePasswordController,
     apiGetAllHelpRequestController,
@@ -531,6 +581,7 @@ module.exports = {
     apiDeleteHelpRequestController,
     apiGetAllUsersController,
     apiGetUserByIdController,
+    apiGetCurrentUserProfileController,
     apiDeleteUserController,
     apiResetPasswordController,
     apiConfirmPaymentController,
@@ -545,6 +596,7 @@ module.exports = {
     apiGetDashboardController,
     apiGetTeamDetailController,
     apiDeleteTeamController,
+    apiUpdateTeamStatusController,
     apiGetHelpByUserController,
     apiSaveTemplateMailController,
     apiGetTemplateMailController,
