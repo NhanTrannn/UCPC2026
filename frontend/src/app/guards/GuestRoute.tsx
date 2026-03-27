@@ -10,7 +10,7 @@ function GuestRoute({ children }: GuestRouteProps) {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
 
   if (isAuthenticated) {
-    return <Navigate to="/user" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

@@ -17,16 +17,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Cấu hình CORS
 configCORS(app);
 
-// Xử lý yêu cầu preflight
-app.options('*', (req, res) => {
-    res.set({
-        'Access-Control-Allow-Origin': process.env.REACT_APP_API_URL,
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
-    });
-    res.status(200).end(); // Phản hồi với mã trạng thái 200
-});
-
 // Khởi tạo các routes
 initApiRoutes(app);
 

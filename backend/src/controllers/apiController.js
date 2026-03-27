@@ -1,6 +1,8 @@
 ﻿const {
     apiLoginService,
     apiRegisterService,
+    apiVerifyRegisterEmailService,
+    apiResendRegisterVerificationService,
     apiUpdateInfoService,
     apiSendHelpRequestService,
     apiChangePasswordService,
@@ -22,13 +24,17 @@
     apiForgotPasswordService,
     apiResetPasswordByUserService,
     apiGetDashBoardService,
+    apiGetTeamDetailService,
+    apiDeleteTeamService,
+    apiUpdateTeamStatusService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,
     apiSetDefaultTemplateMailService,
     apiGetTypesMailService,
     apiSendMailWithTemplateService,
-    apiSendEmailExampleService
+    apiSendEmailExampleService,
+    apiUploadPaymentProofService
 } = require('../services/apiService');
 
 const getHttpStatusFromResult = (result) => {
@@ -72,9 +78,9 @@ const apiRegisterController = async (req, res) => {
         });
     }
 }
-const apiUpdateInfoController = async (req, res) => {
+const apiVerifyRegisterEmailController = async (req, res) => {
     try {
-        let result = await apiUpdateInfoService(req.body);
+        const result = await apiVerifyRegisterEmailService(req.body.email, req.body.pin);
         return sendResult(res, result);
     } catch (error) {
         return res.status(500).json({
@@ -83,7 +89,60 @@ const apiUpdateInfoController = async (req, res) => {
             DT: ''
         });
     }
+}
 
+const apiResendRegisterVerificationController = async (req, res) => {
+    try {
+        const result = await apiResendRegisterVerificationService(req.body.email);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
+
+const apiUpdateInfoController = async (req, res) => {
+    try {
+        const payload = {
+            ...req.body,
+            userId: req.user?.id ?? req.body?.userId
+        };
+        console.log('[apiUpdateInfoController] hit', {
+            userId: payload?.userId,
+            hasTeamName: !!payload?.teamName,
+            participantsCount: Array.isArray(payload?.Participants) ? payload.Participants.length : 0,
+            hasPaidImage: !!payload?.paidImage
+        });
+        let result = await apiUpdateInfoService(payload);
+        return sendResult(res, result);
+    } catch (error) {
+        console.error('[apiUpdateInfoController] failed:', error);
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+
+}
+const apiUploadPaymentProofController = async (req, res) => {
+    try {
+        const payload = {
+            ...req.body,
+            userId: req.user?.id ?? req.body?.userId
+        };
+        let result = await apiUploadPaymentProofService(payload);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
 }
 const apiSendHelpRequestController = async (req, res) => {
     try {
@@ -112,48 +171,6 @@ const apiChangePasswordController = async (req, res) => {
             DT: ''
         });
     }
-}
-const apiGetAllHelpRequestController = async (req, res) => {
-    try {
-        let page = req.query.page;
-        let limit = req.query.limit;
-        let result = await apiGetAllHelpRequestService(+page, +limit);
-        return sendResult(res, result);
-    } catch (error) {
-        return res.status(500).json({
-            EM: 'Internal Server Error',
-            EC: 500,
-            DT: ''
-        });
-    }
-}
-const apiGetHelpRequestByIdController = async (req, res) => {
-    try {
-        let id = req.params.id;
-        let result = await apiGetHelpRequestByIdService(id);
-        return sendResult(res, result);
-    } catch (error) {
-        return res.status(500).json({
-            EM: 'Internal Server Error',
-            EC: 500,
-            DT: ''
-        });
-    }
-}
-const apiSolveHelpRequestController = async (req, res) => {
-    try {
-        let id = req.body.requestId;
-        let response = req.body.response;
-        let result = await apiSolveHelpRequestService(id, response);
-        return sendResult(res, result);
-    } catch (error) {
-        return res.status(500).json({
-            EM: 'Internal Server Error',
-            EC: 500,
-            DT: ''
-        });
-    }
-
 }
 
 const apiDeleteHelpRequestController = async (req, res) => {
@@ -202,8 +219,29 @@ const apiGetUserByIdController = async (req, res) => {
         });
     }
 }
+const apiGetCurrentUserProfileController = async (req, res) => {
+    try {
+        let id = req.user?.id;
+        let result = await apiGetUserByIdService(id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
 const apiDeleteUserController = async (req, res) => {
     try {
+        if (!req.user || req.user.role !== 'ADMIN') {
+            return res.status(403).json({
+                EM: 'Forbidden',
+                EC: 403,
+                DT: ''
+            });
+        }
+
         let id = req.params.id;
         let result = await apiDeleteUserService(+id);
         return sendResult(res, result);
@@ -373,6 +411,58 @@ const apiGetDashboardController = async (req, res) => {
 
     }
 }
+const apiGetTeamDetailController = async (req, res) => {
+    try {
+        let id = req.params.id;
+        let result = await apiGetTeamDetailService(+id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
+const apiDeleteTeamController = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'ADMIN') {
+            return res.status(403).json({
+                EM: 'Forbidden',
+                EC: 403,
+                DT: ''
+            });
+        }
+
+        let id = req.params.id;
+        let result = await apiDeleteTeamService(+id);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+}
+
+const apiUpdateTeamStatusController = async (req, res) => {
+    try {
+        let id = req.params.id;
+        let status = req.body.status;
+        let rejectionReason = req.body.rejectionReason;
+        let result = await apiUpdateTeamStatusService(+id, status, rejectionReason);
+        return sendResult(res, result);
+
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+
+    }
+}
 const apiGetHelpByUserController = async (req, res) => {
     try {
         let id = req.params.id;
@@ -487,10 +577,62 @@ const apiSendEmailExampleController = async (req, res) => {
 
     }
 }
+const apiGetAllHelpRequestController = async (req, res) => {
+    try {
+        const page = req.query.page ? parseInt(req.query.page) : 1;
+        const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+        const filters = {
+            status: req.query.status || null,
+            search: req.query.search || null
+        };
+
+        const result = await apiGetAllHelpRequestService(page, limit, filters);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+};
+
+const apiGetHelpRequestByIdController = async (req, res) => {
+    try {
+        const requestId = req.params.id;
+        const result = await apiGetHelpRequestByIdService(requestId);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+};
+
+const apiSolveHelpRequestController = async (req, res) => {
+    try {
+        const requestId = req.params.id;
+        const isSolve = req.body.isSolve !== undefined ? req.body.isSolve : true;
+        const result = await apiSolveHelpRequestService(requestId, isSolve);
+        return sendResult(res, result);
+    } catch (error) {
+        return res.status(500).json({
+            EM: 'Internal Server Error',
+            EC: 500,
+            DT: ''
+        });
+    }
+};
+
 module.exports = {
     apiLoginController,
     apiRegisterController,
+    apiVerifyRegisterEmailController,
+    apiResendRegisterVerificationController,
     apiUpdateInfoController,
+    apiUploadPaymentProofController,
     apiSendHelpRequestController,
     apiChangePasswordController,
     apiGetAllHelpRequestController,
@@ -499,6 +641,7 @@ module.exports = {
     apiDeleteHelpRequestController,
     apiGetAllUsersController,
     apiGetUserByIdController,
+    apiGetCurrentUserProfileController,
     apiDeleteUserController,
     apiResetPasswordController,
     apiConfirmPaymentController,
@@ -511,6 +654,9 @@ module.exports = {
     apiForgotPasswordController,
     apiResetPasswordByUserController,
     apiGetDashboardController,
+    apiGetTeamDetailController,
+    apiDeleteTeamController,
+    apiUpdateTeamStatusController,
     apiGetHelpByUserController,
     apiSaveTemplateMailController,
     apiGetTemplateMailController,
@@ -519,4 +665,3 @@ module.exports = {
     apiSendMailWithTemplateController,
     apiSendEmailExampleController
 }
-

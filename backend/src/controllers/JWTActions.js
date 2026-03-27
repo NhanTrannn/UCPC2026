@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const publicRoutes = ['/login', '/register', '/forgot-password', '/resetPasswordByUser'];
+const publicRoutes = ['/login', '/register', '/verify-register-email', '/resend-register-verification', '/forgot-password', '/resetPasswordByUser'];
 //const adminRoutes = ['/resetPassword/:id', '/updateInfo', '/getAllHelpRequest', '/getHelpRequestById/:id', '/solveHelpRequest', '/getAllUser', '/getUserById/:id', '/deleteUser/:id', '/confirmPayment/:id', '/searchByEmail', '/filterUnPaid', '/filterPaid', '/filterSolved', '/filterUnSolved', '/filterIsUpdate'];
-const userRoutes = ['/update-info', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id', '/deleteHelpRequest/:id'];
+const userRoutes = ['/update-info', '/upload-payment-proof', '/sendHelpRequest', '/changePassword', '/getHelpByUser/:id', '/deleteHelpRequest/:id', '/getCurrentUserProfile'];
 const { checkWL } = require('./checkWhiteList');
 const generateToken = (payload) => {
     let token = '';
@@ -9,6 +9,8 @@ const generateToken = (payload) => {
     try {
         if (payload.role === 'RESET_PASSWORD') {
             exp_time = +process.env.RESET_PASSWORD_EXPIRE_TIME;
+        } else if (payload.role === 'EMAIL_VERIFY') {
+            exp_time = +(process.env.EMAIL_VERIFY_EXPIRE_TIME || process.env.RESET_PASSWORD_EXPIRE_TIME || 600);
         } else {
             exp_time = process.env.JWT_EXPIRES_IN;
         }
