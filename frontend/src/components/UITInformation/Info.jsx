@@ -53,7 +53,7 @@ export default function UITInformation() {
             <h2 className="text-2xl h-20 font-bold sm:text-5xl xl:text-4xl/none bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
               Khám phá UIT - Nơi ươm mầm tài năng công nghệ
             </h2>
-            <p className="max-w-[600px] text-zinc-400 md:text-xl">
+            <p className="max-w-[600px] text-justify text-zinc-400 md:text-xl">
               {description}
             </p>
           </div>

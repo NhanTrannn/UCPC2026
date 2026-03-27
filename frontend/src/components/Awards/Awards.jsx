@@ -44,9 +44,7 @@ export default function Awards() {
   const cardsInView = useInView(cardsRef, { once: true, margin: "-80px 0px -40px 0px" });
 
   return (
-    <section id="Pricing" className="relative w-full overflow-hidden py-24 md:py-28">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(92,29,152,0.25),transparent_42%),radial-gradient(circle_at_80%_75%,rgba(245,158,11,0.12),transparent_40%)]" />
-
+    <section id="Pricing" className="relative -mt-px w-full overflow-hidden py-24 md:py-28">
       <div className="relative z-10 mx-auto w-[92%] max-w-[1180px]">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="font-bevietnam mt-4 px-2 text-3xl font-bold leading-tight tracking-tight text-white md:px-0 md:text-5xl">

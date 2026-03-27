@@ -23,6 +23,7 @@ interface FormPayload {
   instructorName?: string;
   instructorPhone?: string;
   instructorEmail?: string;
+  instructorSchoolName?: string;
   representativeRole?: 'LEADER' | 'COACH';
   level?: string;
   members?: FormMember[];
@@ -38,9 +39,11 @@ interface UpdateInfoPayload {
   leaderName?: string;
   leaderPhone?: string;
   leaderEmail?: string;
+  leaderSchoolName?: string;
   coachName?: string;
   coachPhone?: string;
   coachEmail?: string;
+  coachSchoolName?: string;
   paidImage: string;
   Participants: Array<{
     fullName: string;
@@ -95,6 +98,16 @@ function toDdMmYyyy(dateValue?: string): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function normalizeSchoolName(value?: string): string {
+  if (!value) return '';
+  return value
+    .toString()
+    .normalize('NFC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('vi-VN');
+}
+
 function mapToUpdateInfoPayload(payload: TeamRegistrationPayload): UpdateInfoPayload {
   const data = payload as FormPayload;
   const members = Array.isArray(data.members) ? data.members : [];
@@ -106,11 +119,13 @@ function mapToUpdateInfoPayload(payload: TeamRegistrationPayload): UpdateInfoPay
           leaderName: data.instructorName ?? '',
           leaderPhone: data.instructorPhone ?? '',
           leaderEmail: data.instructorEmail ?? '',
+          leaderSchoolName: normalizeSchoolName(data.instructorSchoolName),
         }
       : {
           coachName: data.instructorName ?? '',
           coachPhone: data.instructorPhone ?? '',
           coachEmail: data.instructorEmail ?? '',
+          coachSchoolName: normalizeSchoolName(data.instructorSchoolName),
         };
 
   return {

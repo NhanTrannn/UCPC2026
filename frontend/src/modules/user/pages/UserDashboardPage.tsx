@@ -2,10 +2,15 @@ import { LoaderCircle, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useAppSelector } from '../../../app/redux/hooks';
 import {
-  getUserDashboardInfo,
-  uploadPaymentProof,
-  type RegistrationStatus,
-  type UserDashboardInfo,
+    changeUserPassword,
+    deleteUserHelpRequest,
+    getUserDashboardInfo,
+    getUserHelpRequests,
+    sendUserHelpRequest,
+    uploadPaymentProof,
+    type RegistrationStatus,
+    type UserDashboardInfo,
+    type UserHelpRequest,
 } from '../../../services/user-dashboard.service';
 
 function getStatusClass(status: RegistrationStatus): string {
@@ -82,6 +87,18 @@ function UserDashboardPage() {
   const [data, setData] = useState<UserDashboardInfo | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
   const [uploadMessage, setUploadMessage] = useState<string>('');
+  const [oldPassword, setOldPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [passwordMessage, setPasswordMessage] = useState<string>('');
+  const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
+  const [helpTitle, setHelpTitle] = useState<string>('');
+  const [helpContent, setHelpContent] = useState<string>('');
+  const [helpMessage, setHelpMessage] = useState<string>('');
+  const [helpErrorMessage, setHelpErrorMessage] = useState<string>('');
+  const [isSubmittingHelp, setIsSubmittingHelp] = useState<boolean>(false);
+  const [isLoadingHelpRequests, setIsLoadingHelpRequests] = useState<boolean>(false);
+  const [helpRequests, setHelpRequests] = useState<UserHelpRequest[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const infoCardClass =
     'group relative overflow-hidden rounded-2xl border border-fuchsia-100/10 bg-slate-950/45 p-4 shadow-[0_12px_35px_rgba(28,12,46,0.35)] transition duration-300 hover:-translate-y-0.5 hover:border-fuchsia-200/30 hover:bg-slate-950/65';
@@ -103,6 +120,9 @@ function UserDashboardPage() {
         const dashboard = await getUserDashboardInfo();
         if (isMounted) {
           setData(dashboard);
+          if (dashboard.accountId) {
+            void loadHelpRequests(dashboard.accountId);
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -129,10 +149,97 @@ function UserDashboardPage() {
     try {
       const dashboard = await getUserDashboardInfo();
       setData(dashboard);
+      if (dashboard.accountId) {
+        await loadHelpRequests(dashboard.accountId);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải dashboard user');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadHelpRequests = async (userId: number) => {
+    setIsLoadingHelpRequests(true);
+    setHelpErrorMessage('');
+
+    try {
+      const requests = await getUserHelpRequests(userId);
+      setHelpRequests(requests);
+    } catch (error) {
+      setHelpErrorMessage(error instanceof Error ? error.message : 'Không thể tải yêu cầu hỗ trợ');
+    } finally {
+      setIsLoadingHelpRequests(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordMessage('');
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage('Vui lòng nhập đầy đủ thông tin mật khẩu.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('Mật khẩu mới nhập lại không khớp.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changeUserPassword(oldPassword, newPassword);
+      setPasswordMessage('Đổi mật khẩu thành công.');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      setPasswordMessage(error instanceof Error ? error.message : 'Không thể đổi mật khẩu');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleSubmitHelpRequest = async () => {
+    setHelpMessage('');
+
+    if (!data?.accountId) {
+      setHelpMessage('Không xác định được tài khoản hiện tại.');
+      return;
+    }
+
+    if (!helpTitle.trim() || !helpContent.trim()) {
+      setHelpMessage('Vui lòng nhập tiêu đề và nội dung yêu cầu.');
+      return;
+    }
+
+    setIsSubmittingHelp(true);
+    try {
+      await sendUserHelpRequest(helpTitle, helpContent);
+      setHelpMessage('Đã gửi yêu cầu hỗ trợ thành công.');
+      setHelpTitle('');
+      setHelpContent('');
+      await loadHelpRequests(data.accountId);
+    } catch (error) {
+      setHelpMessage(error instanceof Error ? error.message : 'Không thể gửi yêu cầu hỗ trợ');
+    } finally {
+      setIsSubmittingHelp(false);
+    }
+  };
+
+  const handleDeleteHelpRequest = async (requestId: number) => {
+    if (!data?.accountId) {
+      return;
+    }
+
+    setHelpMessage('');
+
+    try {
+      await deleteUserHelpRequest(requestId);
+      setHelpMessage('Đã xóa yêu cầu hỗ trợ.');
+      await loadHelpRequests(data.accountId);
+    } catch (error) {
+      setHelpMessage(error instanceof Error ? error.message : 'Không thể xóa yêu cầu hỗ trợ');
     }
   };
 
@@ -254,7 +361,7 @@ function UserDashboardPage() {
                 ) : null}
               </article>
               <article className={infoCardClass}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-purple-100/75">HLV</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-purple-100/75">Người đại diện</p>
                 <p className="mt-2 text-base font-semibold text-white">{data.trainerName}</p>
               </article>
               <article className={infoCardClass}>
@@ -314,6 +421,129 @@ function UserDashboardPage() {
                     <span className="text-sm text-slate-200">{getStatusDescription(data.status)}</span>
                   ) : null}
                 </div>
+              </article>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <article className="rounded-2xl border border-purple-100/20 bg-slate-950/45 p-4 shadow-[0_14px_36px_rgba(44,15,69,0.35)] md:p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-purple-100/80">Đổi mật khẩu</p>
+                  <div className="mt-3 space-y-2.5">
+                    <input
+                      type="password"
+                      value={oldPassword}
+                      onChange={(event) => setOldPassword(event.target.value)}
+                      placeholder="Mật khẩu hiện tại"
+                      className="w-full rounded-lg border border-purple-100/20 bg-[#221236] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-pink-400"
+                    />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      placeholder="Mật khẩu mới"
+                      className="w-full rounded-lg border border-purple-100/20 bg-[#221236] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-pink-400"
+                    />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="Nhập lại mật khẩu mới"
+                      className="w-full rounded-lg border border-purple-100/20 bg-[#221236] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-pink-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleChangePassword()}
+                      disabled={isChangingPassword}
+                      className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-blue-700 hover:to-cyan-700 disabled:opacity-60"
+                    >
+                      {isChangingPassword ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+                    </button>
+                    {passwordMessage ? <p className="text-xs text-slate-200">{passwordMessage}</p> : null}
+                  </div>
+                </article>
+
+                <article className="rounded-2xl border border-purple-100/20 bg-slate-950/45 p-4 shadow-[0_14px_36px_rgba(44,15,69,0.35)] md:p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-purple-100/80">Gửi yêu cầu hỗ trợ</p>
+                  <div className="mt-3 space-y-2.5">
+                    <input
+                      type="text"
+                      value={helpTitle}
+                      onChange={(event) => setHelpTitle(event.target.value)}
+                      placeholder="Tiêu đề yêu cầu"
+                      className="w-full rounded-lg border border-purple-100/20 bg-[#221236] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-pink-400"
+                    />
+                    <textarea
+                      value={helpContent}
+                      onChange={(event) => setHelpContent(event.target.value)}
+                      rows={4}
+                      placeholder="Mô tả chi tiết vấn đề của bạn"
+                      className="w-full rounded-lg border border-purple-100/20 bg-[#221236] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-pink-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSubmitHelpRequest()}
+                      disabled={isSubmittingHelp}
+                      className="w-full rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-60"
+                    >
+                      {isSubmittingHelp ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                    </button>
+                    {helpMessage ? <p className="text-xs text-slate-200">{helpMessage}</p> : null}
+                  </div>
+                </article>
+              </div>
+
+              <article className="rounded-2xl border border-purple-100/20 bg-slate-950/45 p-4 shadow-[0_14px_36px_rgba(44,15,69,0.35)] md:p-5">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-purple-100/80">Lịch sử yêu cầu hỗ trợ</p>
+
+                {isLoadingHelpRequests ? (
+                  <div className="inline-flex items-center gap-2 rounded-md border border-purple-100/25 bg-purple-200/10 px-3 py-2 text-xs text-purple-100">
+                    <LoaderCircle size={14} className="animate-spin" />
+                    Đang tải yêu cầu hỗ trợ...
+                  </div>
+                ) : null}
+
+                {!isLoadingHelpRequests && helpErrorMessage ? (
+                  <p className="rounded-lg border border-rose-200/35 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+                    {helpErrorMessage}
+                  </p>
+                ) : null}
+
+                {!isLoadingHelpRequests && !helpErrorMessage && helpRequests.length === 0 ? (
+                  <p className="rounded-lg border border-purple-100/20 bg-purple-200/10 px-3 py-2 text-sm text-slate-200">
+                    Chưa có yêu cầu hỗ trợ nào.
+                  </p>
+                ) : null}
+
+                {!isLoadingHelpRequests && !helpErrorMessage && helpRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {helpRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="rounded-lg border border-purple-100/20 bg-[#261236]/35 p-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-white">{request.title}</p>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                              request.isSolved
+                                ? 'border-emerald-300/40 bg-emerald-300/15 text-emerald-100'
+                                : 'border-amber-300/40 bg-amber-300/15 text-amber-100'
+                            }`}
+                          >
+                            {request.isSolved ? 'Đã xử lý' : 'Chờ xử lý'}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-200">{request.content}</p>
+                        <p className="mt-2 text-xs text-purple-100/90">Phản hồi BTC: {request.response}</p>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteHelpRequest(request.id)}
+                          className="mt-2 rounded-md border border-rose-300/40 bg-rose-300/15 px-2.5 py-1 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/25"
+                        >
+                          Xóa yêu cầu
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </article>
 
               <article className="rounded-2xl border border-purple-100/20 bg-slate-950/45 p-4 shadow-[0_14px_36px_rgba(44,15,69,0.35)] md:p-5">

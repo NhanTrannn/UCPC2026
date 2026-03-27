@@ -1,14 +1,49 @@
 import { ErrorMessage, Field, useFormikContext } from 'formik';
+import { useEffect, useState } from 'react';
+import Universities from './UniversitySelect';
 
 function TeamForm() {
-  const { values, setFieldValue } = useFormikContext();
+  const { values, setFieldValue, handleBlur } = useFormikContext();
+  const [universityList, setUniversityList] = useState([]);
   const fieldClassName =
-    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-sm text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
+    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-base font-semibold text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30 font-sans';
+
+  useEffect(() => {
+    if (values.level !== 'university') {
+      return;
+    }
+
+    fetch('./data/university_names.json')
+      .then((res) => res.json())
+      .then((data) => {
+        const formatted = (Array.isArray(data) ? data : []).map((name) => ({
+          label: name,
+          value: name,
+        }));
+        setUniversityList(formatted);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch universities:', err);
+      });
+  }, [values.level]);
+
+  const normalizeVietnameseUppercase = (value) =>
+    (value ?? '')
+      .toString()
+      .normalize('NFC')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleUpperCase('vi-VN');
+
+  const handleUppercaseBlur = (fieldName) => (event) => {
+    handleBlur(event);
+    setFieldValue(fieldName, normalizeVietnameseUppercase(event.target.value));
+  };
 
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-violet-200/15 bg-[#120d25] p-4 md:p-5">
-        <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-xl font-bold">Loại hình tham gia</h2>
+        <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-xl font-bold">Đối tượng tham gia</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <button
             type="button"
@@ -43,7 +78,7 @@ function TeamForm() {
         <h2 className="border-l-2 border-[#d9c2ff] pl-3 text-xl font-bold">Thông tin chung</h2>
 
         <div className="mt-4">
-          <p className="text-sm font-semibold text-[#d6cff5]">Vai trò người đại diện</p>
+          <p className="text-base font-bold text-[#d6cff5]">Vai trò người đại diện</p>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
@@ -73,10 +108,15 @@ function TeamForm() {
         </div>
 
         <div className="mt-4">
-          <label htmlFor="teamName" className="text-sm font-semibold text-[#d6cff5]">
+          <label htmlFor="teamName" className="text-base font-bold text-[#d6cff5]">
             Tên đội thi <span className="font-normal text-[#8f86b4]">(VD: ABC TEAM)</span>
           </label>
-          <Field id="teamName" name="teamName" className={fieldClassName} />
+          <Field
+            id="teamName"
+            name="teamName"
+            className={fieldClassName}
+            onBlur={handleUppercaseBlur('teamName')}
+          />
           <ErrorMessage name={'teamName'}>
             {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
           </ErrorMessage>
@@ -84,18 +124,23 @@ function TeamForm() {
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
-            <label htmlFor="instructorName" className="text-sm font-semibold text-[#d6cff5]">
+            <label htmlFor="instructorName" className="text-base font-bold text-[#d6cff5]">
               {values.representativeRole === 'LEADER' ? 'Họ và tên nhóm trưởng' : 'Họ và tên HLV'}{' '}
               <span className="font-normal text-[#8f86b4]">(VD: NGUYỄN VĂN A)</span>
             </label>
-            <Field id="instructorName" name="instructorName" className={fieldClassName} />
+            <Field
+              id="instructorName"
+              name="instructorName"
+              className={fieldClassName}
+              onBlur={handleUppercaseBlur('instructorName')}
+            />
             <ErrorMessage name={'instructorName'}>
               {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
             </ErrorMessage>
           </div>
 
           <div>
-            <label htmlFor="instructorPhone" className="text-sm font-semibold text-[#d6cff5]">
+            <label htmlFor="instructorPhone" className="text-base font-bold text-[#d6cff5]">
               {values.representativeRole === 'LEADER' ? 'Số điện thoại nhóm trưởng' : 'Số điện thoại HLV'}{' '}
               <span className="font-normal text-[#8f86b4]">(VD: 0912345678)</span>
             </label>
@@ -107,13 +152,37 @@ function TeamForm() {
         </div>
 
         <div className="mt-4">
-          <label htmlFor="instructorEmail" className="text-sm font-semibold text-[#d6cff5]">
+          <label htmlFor="instructorEmail" className="text-base font-bold text-[#d6cff5]">
             Email người đại diện <span className="font-normal text-[#8f86b4]">(VD: abc@gmail.com)</span>
           </label>
           <Field id="instructorEmail" name="instructorEmail" className={fieldClassName} />
           <ErrorMessage name={'instructorEmail'}>
             {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
           </ErrorMessage>
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="instructorSchoolName" className="text-base font-bold text-[#d6cff5]">
+            Trường học người đại diện{' '}
+            <span className="font-normal text-[#8f86b4]">
+              (VD: {values.level === 'university' ? 'ĐẠI HỌC BÁCH KHOA HÀ NỘI' : 'THPT NGUYỄN CÔNG TRỨ'})
+            </span>
+          </label>
+          {values.level === 'university' ? (
+            <Universities name="instructorSchoolName" options={universityList} />
+          ) : (
+            <>
+              <Field
+                id="instructorSchoolName"
+                name="instructorSchoolName"
+                className={fieldClassName}
+                onBlur={handleUppercaseBlur('instructorSchoolName')}
+              />
+              <ErrorMessage name={'instructorSchoolName'}>
+                {(msg) => <div className="mt-1 text-sm font-medium text-red-300">{msg}</div>}
+              </ErrorMessage>
+            </>
+          )}
         </div>
       </section>
     </div>

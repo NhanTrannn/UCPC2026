@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router-dom';
 import ProtectedRoute from '../../app/guards/ProtectedRoute';
 import AdminAccountsPage from './pages/AdminAccountsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminHelpRequestsPage from './pages/AdminHelpRequestsPage';
 import AdminTeamsPage from './pages/AdminTeamsPage';
 
 export const adminModuleRoutes: RouteObject[] = [
@@ -26,6 +27,14 @@ export const adminModuleRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={['ADMIN', 'STAFF']}>
         <AdminAccountsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'dashboard/help-requests',
+    element: (
+      <ProtectedRoute allowedRoles={['ADMIN', 'STAFF']}>
+        <AdminHelpRequestsPage />
       </ProtectedRoute>
     ),
   },

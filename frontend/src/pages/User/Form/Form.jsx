@@ -1,4 +1,4 @@
-import { Form, Formik, useFormikContext } from "formik";
+import { Form, Formik, setIn, useFormikContext } from "formik";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Yup from "yup";
@@ -33,6 +33,13 @@ const validationSchema = Yup.object({
   instructorPhone: Yup.string()
     .matches(/^\d{10}$/, "Số điện thoại cần có 10 số")
     .required("SĐT là bắt buộc."),
+  instructorSchoolName: Yup.string()
+    .transform((value) =>
+      typeof value === "string"
+        ? value.normalize("NFC").replace(/\s+/g, " ").trim()
+        : value
+    )
+    .required("Trường học người đại diện là bắt buộc."),
 }); // Định nghĩa schema cho bước 1
 
 const validationSchema2 = Yup.object({
@@ -201,11 +208,34 @@ const validationSchemaPayment = Yup.object({
   paidImage: Yup.string().required("Vui lòng tải lên minh chứng thanh toán."),
 });
 
+const validateWithSchema = async (values, schema) => {
+  try {
+    await schema.validate(values, { abortEarly: false });
+    return {};
+  } catch (validationError) {
+    if (!validationError?.inner || !Array.isArray(validationError.inner)) {
+      return {};
+    }
+
+    return validationError.inner.reduce((formErrors, errorItem) => {
+      if (!errorItem?.path) {
+        return formErrors;
+      }
+
+      return setIn(formErrors, errorItem.path, errorItem.message);
+    }, {});
+  }
+};
+
 const PAYMENT_QR_IMAGE =
   import.meta.env.VITE_PAYMENT_QR_IMAGE ||
   "https://img.vietqr.io/image/970436-123456789-compact2.png?amount=300000&addInfo=UCPC%20TEAM%20PAYMENT";
 
-const REGISTRATION_DRAFT_KEY = "ucpc_registration_form_draft_v1";
+const REGISTRATION_DRAFT_KEY_PREFIX = "ucpc_registration_form_draft_v2";
+const LEGACY_REGISTRATION_DRAFT_KEY = "ucpc_registration_form_draft_v1";
+
+const getRegistrationDraftKey = (userId) =>
+  `${REGISTRATION_DRAFT_KEY_PREFIX}:${userId || "anonymous"}`;
 
 const createEmptyMember = () => ({
   fullName: "",
@@ -223,14 +253,15 @@ const defaultInitialValues = {
   instructorName: "",
   instructorEmail: "",
   instructorPhone: "",
+  instructorSchoolName: "",
   level: "",
   members: [createEmptyMember(), createEmptyMember(), createEmptyMember()],
   paidImage: "",
 };
 
-const loadRegistrationDraft = () => {
+const loadRegistrationDraft = (draftKey) => {
   try {
-    const rawDraft = localStorage.getItem(REGISTRATION_DRAFT_KEY);
+    const rawDraft = localStorage.getItem(draftKey);
     if (!rawDraft) {
       return {
         values: defaultInitialValues,
@@ -272,7 +303,7 @@ const normalizeMembers = (members) => {
   }));
 };
 
-function RegistrationDraftAutoSave({ step }) {
+function RegistrationDraftAutoSave({ currentStep, draftKey }) {
   const { values, isSubmitting } = useFormikContext();
 
   useEffect(() => {
@@ -282,9 +313,9 @@ function RegistrationDraftAutoSave({ step }) {
 
     try {
       localStorage.setItem(
-        REGISTRATION_DRAFT_KEY,
+        draftKey,
         JSON.stringify({
-          step,
+          step: currentStep,
           values,
           updatedAt: Date.now(),
         })
@@ -292,7 +323,7 @@ function RegistrationDraftAutoSave({ step }) {
     } catch (error) {
       // Ignore localStorage errors (quota/private mode).
     }
-  }, [step, values, isSubmitting]);
+  }, [currentStep, draftKey, values, isSubmitting]);
 
   return null;
 }
@@ -302,6 +333,7 @@ function  UserForm() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const authUser = useAppSelector((state) => state.auth.user);
+  const registrationDraftKey = getRegistrationDraftKey(authUser?.id);
   const {
     submitTeam,
     submitError,
@@ -313,33 +345,65 @@ function  UserForm() {
   const waitTwoSeconds = async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   };
-  const [draftState] = useState(() => loadRegistrationDraft());
+  const [draftState] = useState(() =>
+    loadRegistrationDraft(registrationDraftKey)
+  );
   const [step, setStep] = useState(draftState.step);
-  const [initialValues] = useState(draftState.values);
+  const [initialValues, setInitialValues] = useState(draftState.values);
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem(LEGACY_REGISTRATION_DRAFT_KEY);
+    } catch (error) {
+      // Ignore localStorage errors (quota/private mode).
+    }
+  }, []);
+
+  useEffect(() => {
+    const nextDraftState = loadRegistrationDraft(registrationDraftKey);
+    setStep(nextDraftState.step);
+    setInitialValues(nextDraftState.values);
+    values_tmp = nextDraftState.values;
+  }, [registrationDraftKey]);
+
+  useEffect(() => {
+    if (!submitSuccess) {
+      return undefined;
+    }
+
+    const redirectTimer = window.setTimeout(() => {
+      clearSubmitSuccess();
+      navigate("/");
+    }, 1400);
+
+    return () => {
+      window.clearTimeout(redirectTimer);
+    };
+  }, [submitSuccess, clearSubmitSuccess, navigate]);
 
   const handleGoHome = () => {
     clearSubmitSuccess();
     navigate("/");
   };
 
-  const handleCloseSuccessPopup = () => {
-    clearSubmitSuccess();
-  };
-
   values_tmp = initialValues;
 
   return (
     <Formik
+      enableReinitialize
       initialValues={initialValues}
-      validationSchema={
-        step === 1
-          ? validationSchema
-          : step === 2
-          ? values_tmp.level === "highschool"
-            ? validationSchema2
-            : validationSchema3
-          : validationSchemaPayment
-      }
+      validate={(values) => {
+        const schema =
+          step === 1
+            ? validationSchema
+            : step === 2
+            ? values.level === "highschool"
+              ? validationSchema2
+              : validationSchema3
+            : validationSchemaPayment;
+
+        return validateWithSchema(values, schema);
+      }}
       onSubmit={async (values, { setSubmitting, setTouched }) => {
         if (step === 1) {
           console.log("Step 1:", values);
@@ -375,7 +439,8 @@ function  UserForm() {
                 })
               );
             }
-            localStorage.removeItem(REGISTRATION_DRAFT_KEY);
+            localStorage.removeItem(registrationDraftKey);
+            localStorage.removeItem(LEGACY_REGISTRATION_DRAFT_KEY);
           } finally {
             setSubmitting(false);
           }
@@ -388,8 +453,11 @@ function  UserForm() {
         const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
 
         return (
-          <Form className="registration-shell font-bevietnam mx-auto my-10 w-full max-w-6xl rounded-2xl border border-violet-300/20 bg-[#0f0b1f]/88 px-4 py-6 text-[#f5f2ff] shadow-[0_28px_70px_rgba(5,2,18,0.65)] backdrop-blur-md md:px-8">
-            <RegistrationDraftAutoSave step={step} />
+          <Form className="registration-shell font-sans mx-auto my-10 w-full max-w-6xl rounded-2xl border border-violet-300/20 bg-[#0f0b1f]/88 px-4 py-6 text-base font-medium text-[#f5f2ff] shadow-[0_28px_70px_rgba(5,2,18,0.65)] backdrop-blur-md md:px-8">
+            <RegistrationDraftAutoSave
+              currentStep={step}
+              draftKey={registrationDraftKey}
+            />
             <div className="mb-6 border-b border-violet-200/15 pb-5">
               <h1 className="text-3xl font-extrabold tracking-wide md:text-4xl">Đăng ký tham gia</h1>
               <p className="mt-2 text-sm text-[#b6afd6]">Bước {step}: Cung cấp thông tin đội thi và hoàn tất thanh toán</p>
@@ -456,7 +524,7 @@ function  UserForm() {
                         };
                         reader.readAsDataURL(file);
                       }}
-                      className="w-full rounded-lg border border-violet-200/25 bg-[#130f28] px-3 py-2 text-sm text-[#efe8ff] file:mr-3 file:rounded-md file:border-0 file:bg-[#d9c2ff] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#1f1538]"
+                      className="w-full rounded-lg border border-violet-200/25 bg-[#130f28] px-3 py-2 text-base font-semibold text-[#efe8ff] file:mr-3 file:rounded-md file:border-0 file:bg-[#d9c2ff] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#1f1538]"
                     />
 
                     {touched.paidImage && errors.paidImage ? (
@@ -519,21 +587,15 @@ function  UserForm() {
                 <div className="w-full max-w-md rounded-2xl border border-emerald-300/35 bg-[#140f2a] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
                   <h3 className="text-xl font-bold text-emerald-200">Đăng ký thành công</h3>
                   <p className="mt-2 text-sm text-[#c9c2e8]">{submitSuccess}</p>
+                  <p className="mt-1 text-xs text-emerald-100/80">Đang chuyển về trang chủ...</p>
 
                   <div className="mt-5 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCloseSuccessPopup}
-                      className="rounded-lg border border-violet-200/20 bg-[#2d2351] px-4 py-2 text-sm font-semibold text-[#f3e9ff] transition hover:bg-[#3a2f64]"
-                    >
-                      Ở lại trang
-                    </button>
                     <button
                       type="button"
                       onClick={handleGoHome}
                       className="rounded-lg border border-emerald-200/30 bg-emerald-300/85 px-4 py-2 text-sm font-bold text-[#1a1232] transition hover:bg-emerald-200"
                     >
-                      Về trang chủ
+                      Về trang chủ ngay
                     </button>
                   </div>
                 </div>

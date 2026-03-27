@@ -219,7 +219,7 @@ function AdminDashboardPage() {
     const rows = filteredRecentTeams.map((team, index) => ({
       STT: index + 1,
       TenDoi: team.name,
-      HuanLuyenVien: team.coach,
+      NguoiDaiDien: team.coach,
       DonVi: team.school,
       TrangThai: formatTeamStatus(team.status),
     }));
@@ -241,7 +241,7 @@ function AdminDashboardPage() {
     const rows = allTeamsSorted.map((team, index) => ({
       STT: index + 1,
       TenDoi: team.name,
-      HuanLuyenVien: team.coach,
+      NguoiDaiDien: team.coach,
       DonVi: team.school,
       TrangThai: formatTeamStatus(team.status),
     }));
@@ -265,7 +265,7 @@ function AdminDashboardPage() {
     const rows = validTeams.map((team, index) => ({
       STT: index + 1,
       TenDoi: team.name,
-      HuanLuyenVien: team.coach,
+      NguoiDaiDien: team.coach,
       DonVi: team.school,
       TrangThai: formatTeamStatus(team.status),
     }));
@@ -474,7 +474,7 @@ function AdminDashboardPage() {
                     <thead className="sticky top-0 bg-slate-900/95">
                       <tr className="border-b border-white/10 text-left text-slate-300">
                         <th className="px-4 py-3">Đội thi</th>
-                        <th className="px-4 py-3">Huấn luyện viên</th>
+                        <th className="px-4 py-3">Người đại diện</th>
                         <th className="px-4 py-3">Đơn vị</th>
                         <th className="px-4 py-3">Trạng thái</th>
                       </tr>
@@ -550,7 +550,7 @@ function AdminDashboardPage() {
                     <thead className="sticky top-0 bg-slate-900/95">
                       <tr className="border-b border-white/10 text-left text-slate-300">
                         <th className="px-4 py-3">Đội thi</th>
-                        <th className="px-4 py-3">Huấn luyện viên</th>
+                        <th className="px-4 py-3">Người đại diện</th>
                         <th className="px-4 py-3">Đơn vị</th>
                         <th className="px-4 py-3">Trạng thái</th>
                       </tr>
@@ -666,7 +666,7 @@ function AdminDashboardPage() {
             type="text"
             value={recentTeamsSearchKeyword}
             onChange={(event) => setRecentTeamsSearchKeyword(event.target.value)}
-            placeholder="Tìm theo tên đội, HLV, đơn vị..."
+            placeholder="Tìm theo tên đội, người đại diện, đơn vị..."
             className="rounded-lg border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-300/55"
           />
           <select
@@ -696,7 +696,7 @@ function AdminDashboardPage() {
             <thead>
               <tr className="border border-white/10 text-left text-slate-300">
                 <th className="border border-white/10 px-3 py-2">Tên đội</th>
-                <th className="border border-white/10 px-3 py-2">Huấn luyện viên</th>
+                <th className="border border-white/10 px-3 py-2">Người đại diện</th>
                 <th className="border border-white/10 px-3 py-2">Đơn vị</th>
                 <th className="border border-white/10 px-3 py-2">Trạng thái</th>
               </tr>

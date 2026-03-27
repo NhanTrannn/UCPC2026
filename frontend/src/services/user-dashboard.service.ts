@@ -16,6 +16,12 @@ interface UserDashboardApiData {
   isUpdate?: boolean;
   isHighSchool?: boolean | null;
   trainerName?: string | null;
+  representatives?: Partial<Record<'LEADER' | 'COACH', {
+    fullName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    schoolName?: string | null;
+  }>>;
   rejectionReason?: string | null;
   Participants?: Array<{
     id?: number;
@@ -52,6 +58,22 @@ export interface UserDashboardInfo {
   }>;
   status: RegistrationStatus;
   statusLabel: string;
+}
+
+interface UserHelpRequestApiData {
+  id?: number;
+  title?: string;
+  data?: string;
+  response?: string;
+  isSolve?: boolean;
+}
+
+export interface UserHelpRequest {
+  id: number;
+  title: string;
+  content: string;
+  response: string;
+  isSolved: boolean;
 }
 
 function getStatus(data: UserDashboardApiData): RegistrationStatus {
@@ -100,6 +122,10 @@ export async function getUserDashboardInfo(): Promise<UserDashboardInfo> {
 
   const data = response.DT ?? {};
   const status = getStatus(data);
+  const leaderName = data.representatives?.LEADER?.fullName?.trim() || '';
+  const coachName = data.representatives?.COACH?.fullName?.trim() || '';
+  const fallbackName = data.trainerName?.trim() || '';
+  const representativeName = leaderName || coachName || fallbackName || 'Chưa cập nhật';
 
   return {
     accountId: typeof data.id === 'number' ? data.id : null,
@@ -107,7 +133,7 @@ export async function getUserDashboardInfo(): Promise<UserDashboardInfo> {
     email: data.email ?? 'Chưa cập nhật',
     role: data.role ?? 'USER',
     teamName: data.teamName ?? 'Chưa cập nhật',
-    trainerName: data.trainerName ?? 'Chưa cập nhật',
+    trainerName: representativeName,
     blockLabel: getBlockLabel(data.isHighSchool),
     updateLabel: getUpdateLabel(data.isUpdate),
     isPaid: data.isPaid === true,
@@ -137,5 +163,70 @@ export async function uploadPaymentProof(paidImage: string): Promise<void> {
 
   if (response.EC !== 0) {
     throw new Error(response.EM || 'Không thể nộp lại minh chứng');
+  }
+}
+
+export async function changeUserPassword(oldPassword: string, newPassword: string): Promise<void> {
+  if (!oldPassword || !newPassword) {
+    throw new Error('Vui lòng nhập mật khẩu hiện tại và mật khẩu mới');
+  }
+
+  const response = await apiRequest<ApiResult<unknown>>('/api/v1/changePassword', {
+    method: 'POST',
+    body: JSON.stringify({ oldPassword, newPassword }),
+  });
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Không thể đổi mật khẩu');
+  }
+}
+
+export async function sendUserHelpRequest(title: string, content: string): Promise<void> {
+  if (!title.trim() || !content.trim()) {
+    throw new Error('Vui lòng nhập tiêu đề và nội dung yêu cầu');
+  }
+
+  const response = await apiRequest<ApiResult<unknown>>('/api/v1/sendHelpRequest', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: title.trim(),
+      data: content.trim(),
+    }),
+  });
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Không thể gửi yêu cầu hỗ trợ');
+  }
+}
+
+export async function getUserHelpRequests(userId: number): Promise<UserHelpRequest[]> {
+  const response = await apiRequest<ApiResult<UserHelpRequestApiData[] | ''>>(`/api/v1/getHelpByUser/${userId}`);
+
+  if (response.EC === -1 && typeof response.EM === 'string' && response.EM.includes('There is no help request')) {
+    return [];
+  }
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Không thể tải yêu cầu hỗ trợ');
+  }
+
+  const rows = Array.isArray(response.DT) ? response.DT : [];
+
+  return rows.map((row) => ({
+    id: Number(row.id ?? 0),
+    title: row.title ?? 'Không có tiêu đề',
+    content: row.data ?? '',
+    response: row.response ?? 'No response yet',
+    isSolved: row.isSolve === true,
+  }));
+}
+
+export async function deleteUserHelpRequest(requestId: number): Promise<void> {
+  const response = await apiRequest<ApiResult<unknown>>(`/api/v1/deleteHelpRequest/${requestId}`, {
+    method: 'DELETE',
+  });
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Không thể xóa yêu cầu hỗ trợ');
   }
 }

@@ -6,23 +6,21 @@ function Universities({ name, options = [] }) {
     const { setFieldValue } = useFormikContext();
     const [field, meta] = useField(name);
     const [isOther, setIsOther] = useState(false);
-    const [isComposing, setIsComposing] = useState(false);
     const [customInputValue, setCustomInputValue] = useState('');
+    const [isCustomInputFocused, setIsCustomInputFocused] = useState(false);
 
     const normalizeText = (text) =>
         (text ?? '')
             .toString()
             .normalize('NFC')
             .replace(/\s+/g, ' ')
-            .trim()
-            .toUpperCase();
+            .trim();
 
-    const formatOptionSchoolName = (text) => normalizeText(text);
-    const formatInputSchoolName = (text) =>
-        (text ?? '')
-            .toString()
-            .normalize('NFC')
-            .toUpperCase();
+    const toVietnameseUppercase = (text) =>
+        normalizeText(text).toLocaleUpperCase('vi-VN');
+
+    const formatOptionSchoolName = (text) => toVietnameseUppercase(text);
+    const formatInputSchoolName = (text) => toVietnameseUppercase(text);
 
     // Lấy giá trị hiện tại từ field.value
     const currentValue = field.value;
@@ -41,21 +39,23 @@ function Universities({ name, options = [] }) {
             const formatted = formatOptionSchoolName(value);
             return { label: formatted, value: formatted };
         }),
-        { label: 'Khác', value: '__OTHER__' }
+        { label: 'KHÁC', value: '__OTHER__' }
     ];
 
     const matchedOption = formattedOptions.find(
         (opt) =>
             opt.value !== '__OTHER__' &&
-            normalizeText(opt.value) === normalizeText(currentValue)
+            normalizeText(opt.value).toLowerCase() === normalizeText(currentValue).toLowerCase()
     );
     const isCurrentOther = currentValue && !matchedOption;
 
     useEffect(() => {
-        if ((isOther || isCurrentOther) && !isComposing) {
+        // Only hydrate input from form state when restoring existing custom values.
+        // While focused, keep the local value as source of truth to avoid IME overwrite.
+        if (isCurrentOther && !isCustomInputFocused) {
             setCustomInputValue((currentValue ?? '').toString());
         }
-    }, [isOther, isCurrentOther, isComposing, currentValue]);
+    }, [isCurrentOther, currentValue, isCustomInputFocused]);
 
     const handleSelectChange = (selectedOption) => {
         if (selectedOption?.value === '__OTHER__') {
@@ -80,7 +80,7 @@ function Universities({ name, options = [] }) {
         const matched = formattedOptions.find(
             (opt) =>
                 opt.value !== '__OTHER__' &&
-                normalizeText(opt.value) === normalizedTypedValue
+                normalizeText(opt.value).toLowerCase() === normalizedTypedValue.toLowerCase()
         );
 
         if (matched) {
@@ -95,14 +95,14 @@ function Universities({ name, options = [] }) {
     };
 
     const selectedOption = isOther || isCurrentOther
-        ? { label: 'Khác', value: '__OTHER__' }
+        ? { label: 'KHÁC', value: '__OTHER__' }
         : matchedOption || formattedOptions.find((opt) => opt.value === field.value) || null;
 
     const fieldClassName =
-        'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-sm text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
+        'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-base font-semibold text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30 font-sans';
 
     return (
-        <div className="flex flex-col gap-1.5 w-full">
+        <div className="mt-2 flex w-full flex-col gap-1.5">
             <Select
                 id={name}
                 name={name}
@@ -114,8 +114,10 @@ function Universities({ name, options = [] }) {
                 styles={{
                     control: (base, state) => ({
                         ...base,
+                        fontFamily: 'Segoe UI, Arial, sans-serif',
                         minHeight: '3rem',
-                        fontSize: '1rem',
+                        fontSize: '1.05rem',
+                        fontWeight: 600,
                         borderWidth: '1px',
                         borderRadius: '0.5rem',
                         borderColor: state.isFocused ? '#bca4ff' : '#3b2f63',
@@ -138,6 +140,7 @@ function Universities({ name, options = [] }) {
                     singleValue: (base) => ({
                         ...base,
                         color: '#f3efff',
+                        fontWeight: 600,
                     }),
                     input: (base) => ({
                         ...base,
@@ -147,6 +150,7 @@ function Universities({ name, options = [] }) {
                     }),
                     menu: (base) => ({
                         ...base,
+                        fontFamily: 'Segoe UI, Arial, sans-serif',
                         backgroundColor: '#18122f',
                         border: '1px solid #3b2f63',
                         borderRadius: '0.5rem',
@@ -159,6 +163,7 @@ function Universities({ name, options = [] }) {
                     option: (base, state) => ({
                         ...base,
                         color: state.isSelected ? '#f8f5ff' : '#ddd6ff',
+                        fontWeight: 600,
                         backgroundColor: state.isSelected
                             ? '#4b2a88'
                             : state.isFocused
@@ -191,12 +196,11 @@ function Universities({ name, options = [] }) {
                     type="text"
                     value={customInputValue}
                     onChange={handleCustomInput}
-                    onCompositionStart={() => setIsComposing(true)}
-                    onCompositionEnd={(e) => {
-                        setIsComposing(false);
-                        setCustomInputValue(e.target.value);
+                    onFocus={() => setIsCustomInputFocused(true)}
+                    onBlur={() => {
+                        setIsCustomInputFocused(false);
+                        handleCustomInputBlur();
                     }}
-                    onBlur={handleCustomInputBlur}
                     placeholder="Nhập tên trường của bạn"
                     className={fieldClassName}
                 />

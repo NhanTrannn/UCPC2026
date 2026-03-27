@@ -49,6 +49,7 @@ function AdminTeamsPage() {
   const [rejectReasonByTeamId, setRejectReasonByTeamId] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [infoMessage, setInfoMessage] = useState<string>('');
   const [proofViewer, setProofViewer] = useState<{ src: string; teamName: string } | null>(null);
   const [proofZoom, setProofZoom] = useState<number>(1);
 
@@ -113,6 +114,7 @@ function AdminTeamsPage() {
   const loadTeams = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage('');
+    setInfoMessage('');
 
     try {
       const data = await getAdminDashboardData();
@@ -219,13 +221,28 @@ function AdminTeamsPage() {
 
     setUpdatingStatusTeamId(team.id);
     setMenuTeamId(null);
+    setErrorMessage('');
+    setInfoMessage('');
 
     try {
-      await updateAdminTeamStatus(team.id, status);
+      const result = await updateAdminTeamStatus(team.id, status);
 
       setTeams((prev) => prev.map((item) => (
         item.id === team.id ? { ...item, status } : item
       )));
+
+      if (status === 'Đã duyệt') {
+        if (result.approvalEmailSent === true) {
+          const ownerText = result.ownerEmail
+            ? `Email tài khoản đội (${result.ownerEmail}): ${result.ownerEmailSent ? 'đã gửi' : 'chưa gửi'}.`
+            : 'Không tìm thấy email tài khoản đội.';
+          setInfoMessage(`Duyệt đội thành công. ${ownerText}`);
+        } else if (result.approvalEmailSent === false) {
+          setErrorMessage(
+            `Duyệt đội thành công nhưng gửi email thất bại. ${result.ownerEmail ? `Email tài khoản đội: ${result.ownerEmail}. ` : ''}${result.approvalEmailError || 'Không rõ lý do'}`
+          );
+        }
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Cập nhật trạng thái thất bại');
     } finally {
@@ -243,8 +260,10 @@ function AdminTeamsPage() {
     }
 
     setReviewingPaymentTeamId(team.id);
+    setErrorMessage('');
+    setInfoMessage('');
     try {
-      await updateAdminTeamStatus(team.id, targetStatus, isAccepted ? undefined : rejectionReason);
+      const result = await updateAdminTeamStatus(team.id, targetStatus, isAccepted ? undefined : rejectionReason);
 
       setTeams((prev) => prev.map((item) => (
         item.id === team.id ? { ...item, status: targetStatus } : item
@@ -264,6 +283,19 @@ function AdminTeamsPage() {
           },
         };
       });
+
+      if (isAccepted) {
+        if (result.approvalEmailSent === true) {
+          const ownerText = result.ownerEmail
+            ? `Email tài khoản đội (${result.ownerEmail}): ${result.ownerEmailSent ? 'đã gửi' : 'chưa gửi'}.`
+            : 'Không tìm thấy email tài khoản đội.';
+          setInfoMessage(`Đã duyệt. ${ownerText}`);
+        } else if (result.approvalEmailSent === false) {
+          setErrorMessage(
+            `Đã duyệt nhưng gửi email thất bại. ${result.ownerEmail ? `Email tài khoản đội: ${result.ownerEmail}. ` : ''}${result.approvalEmailError || 'Không rõ lý do'}`
+          );
+        }
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể cập nhật trạng thái thanh toán');
     } finally {
@@ -279,7 +311,7 @@ function AdminTeamsPage() {
     const rows = filteredTeams.map((team, index) => ({
       STT: index + 1,
       TenDoi: team.name,
-      HuanLuyenVien: team.coach,
+      NguoiDaiDien: team.coach,
       DonVi: team.school,
       TrangThai: formatTeamStatus(team.status),
     }));
@@ -345,12 +377,19 @@ function AdminTeamsPage() {
         </div>
       ) : null}
 
+      {infoMessage ? (
+        <div className="mt-3 rounded-xl border border-emerald-300/30 bg-emerald-300/10 p-4 text-sm text-emerald-100">
+          <p className="font-semibold">Thông báo</p>
+          <p className="mt-1">{infoMessage}</p>
+        </div>
+      ) : null}
+
       <div className="mt-3 grid gap-2 md:grid-cols-[1fr_220px_220px]">
         <input
           type="text"
           value={searchKeyword}
           onChange={(event) => setSearchKeyword(event.target.value)}
-          placeholder="Tìm theo tên đội, HLV, đơn vị..."
+          placeholder="Tìm theo tên đội, người đại diện, đơn vị..."
           className="rounded-lg border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-300/55"
         />
         <select
@@ -380,7 +419,7 @@ function AdminTeamsPage() {
           <thead>
             <tr className="border border-white/10 text-left text-slate-300">
               <th className="border border-white/10 px-3 py-2">Tên đội</th>
-              <th className="border border-white/10 px-3 py-2">Huấn luyện viên</th>
+              <th className="border border-white/10 px-3 py-2">Người đại diện</th>
               <th className="border border-white/10 px-3 py-2">Đơn vị</th>
               <th className="border border-white/10 px-3 py-2">Trạng thái</th>
                 <th className="border border-white/10 px-3 py-2 text-right">Tác vụ</th>
@@ -506,7 +545,7 @@ function AdminTeamsPage() {
                             <div className="space-y-3 rounded-lg border border-white/10 bg-slate-900/45 p-3">
                               <div className="grid gap-2 text-sm md:grid-cols-2">
                                 <p>
-                                  <span className="font-semibold text-slate-100">HLV:</span> {detail?.coach ?? team.coach}
+                                  <span className="font-semibold text-slate-100">Người đại diện:</span> {detail?.coach ?? team.coach}
                                 </p>
                                 <p className="whitespace-pre-line">
                                   <span className="font-semibold text-slate-100">Đơn vị:</span> {detail?.school ?? team.school}

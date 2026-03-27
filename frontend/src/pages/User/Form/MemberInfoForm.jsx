@@ -3,11 +3,24 @@ import { useEffect, useState } from 'react';
 import Universities from './UniversitySelect';
 
 function MemberInfoForm({ isUniversity }) {
-  const { values, touched } = useFormikContext();
+  const { values, touched, handleBlur, setFieldValue } = useFormikContext();
   const [universityList, setUniversityList] = useState([]);
 
   const fieldClassName =
-    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-sm text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
+    'mt-2 h-12 w-full rounded-lg border border-[#3b2f63] bg-[#1b1533] px-3 text-base font-semibold text-[#f3efff] outline-none transition placeholder:text-[#7f73ad] focus:border-[#bca4ff] focus:ring-2 focus:ring-[#bca4ff]/30';
+
+  const normalizeVietnameseUppercase = (value) =>
+    (value ?? '')
+      .toString()
+      .normalize('NFC')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleUpperCase('vi-VN');
+
+  const handleUppercaseBlur = (fieldName) => (event) => {
+    handleBlur(event);
+    setFieldValue(fieldName, normalizeVietnameseUppercase(event.target.value));
+  };
 
   useEffect(() => {
     if (isUniversity) {
@@ -46,13 +59,14 @@ function MemberInfoForm({ isUniversity }) {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label htmlFor={`members[${index}].fullName`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].fullName`} className="text-base font-bold text-[#d6cff5]">
                   Họ và tên <span className="font-normal text-[#8f86b4]">(VD: NGUYỄN VĂN A)</span>
                 </label>
                 <Field
                   id={`members[${index}].fullName`}
                   name={`members[${index}].fullName`}
                   className={fieldClassName}
+                  onBlur={handleUppercaseBlur(`members[${index}].fullName`)}
                 />
               {touched.members?.[index]?.fullName && (
                 <div className="mt-1">
@@ -64,7 +78,7 @@ function MemberInfoForm({ isUniversity }) {
               </div>
 
               <div>
-                <label htmlFor={`members[${index}].university`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].university`} className="text-base font-bold text-[#d6cff5]">
                   Trường{' '}
                   <span className="font-normal text-[#8f86b4]">
                     (VD: {isUniversity ? 'THPT BÁCH KHOA HÀ NỘI' : 'THPT NGUYỄN CÔNG TRỨ'})
@@ -77,6 +91,7 @@ function MemberInfoForm({ isUniversity }) {
                     id={`members[${index}].university`}
                     name={`members[${index}].university`}
                     className={fieldClassName}
+                    onBlur={handleUppercaseBlur(`members[${index}].university`)}
                   />
                 )}
                 {touched.members?.[index]?.university && (
@@ -89,7 +104,7 @@ function MemberInfoForm({ isUniversity }) {
               </div>
 
               <div>
-                <label htmlFor={`members[${index}].email`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].email`} className="text-base font-bold text-[#d6cff5]">
                   Email cá nhân <span className="font-normal text-[#8f86b4]">(VD: abc@gmail.com)</span>
                 </label>
                 <Field
@@ -108,7 +123,7 @@ function MemberInfoForm({ isUniversity }) {
               </div>
 
               <div>
-                <label htmlFor={`members[${index}].phone`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].phone`} className="text-base font-bold text-[#d6cff5]">
                   Số điện thoại <span className="font-normal text-[#8f86b4]">(VD: 0912345678)</span>
                 </label>
                 <Field
@@ -127,7 +142,7 @@ function MemberInfoForm({ isUniversity }) {
               </div>
 
               <div>
-                <label htmlFor={`members[${index}].birth`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].birth`} className="text-base font-bold text-[#d6cff5]">
                   Ngày sinh <span className="font-normal text-[#8f86b4]">(VD: 22/05/2006)</span>
                 </label>
                 <Field
@@ -147,7 +162,7 @@ function MemberInfoForm({ isUniversity }) {
 
               {isUniversity ? (
                 <div>
-                  <label htmlFor={`members[${index}].studentId`} className="text-sm font-semibold text-[#d6cff5]">
+                  <label htmlFor={`members[${index}].studentId`} className="text-base font-bold text-[#d6cff5]">
                     MSSV / Mã học sinh <span className="font-normal text-[#8f86b4]">(VD: 22520123)</span>
                   </label>
                   <Field
@@ -165,13 +180,13 @@ function MemberInfoForm({ isUniversity }) {
                 </div>
               ) : (
                 <div>
-                  <label className="text-sm font-semibold text-transparent">Ẩn trường</label>
+                  <label className="text-base font-bold text-transparent">Ẩn trường</label>
                   <div className="mt-2 h-12" />
                 </div>
               )}
 
               <div>
-                <label htmlFor={`members[${index}].CCCD`} className="text-sm font-semibold text-[#d6cff5]">
+                <label htmlFor={`members[${index}].CCCD`} className="text-base font-bold text-[#d6cff5]">
                   Số CCCD <span className="font-normal text-[#8f86b4]">(VD: 07920500xxxx)</span>
                 </label>
                 <Field

@@ -89,6 +89,8 @@ export interface AdminAccountRow {
   teamName: string;
 }
 
+export type AdminRepresentativeRole = 'LEADER' | 'COACH';
+
 export interface AdminAccountDetail {
   id: number;
   email: string;
@@ -100,6 +102,8 @@ export interface AdminAccountDetail {
   isUpdate: boolean | null;
   isHighSchool: boolean | null;
   trainerName: string | null;
+  representativeName: string | null;
+  representativeRole: AdminRepresentativeRole | null;
   participants: AdminTeamMember[];
 }
 
@@ -150,6 +154,11 @@ interface UpdateTeamStatusApiData {
   isPaid?: boolean;
   isUpdate?: boolean;
   rejectionReason?: string | null;
+  approvalEmailSent?: boolean | null;
+  approvalEmailError?: string | null;
+  approvalEmailRecipients?: string[];
+  ownerEmail?: string | null;
+  ownerEmailSent?: boolean | null;
 }
 
 interface AdminUserDetailApiData {
@@ -163,6 +172,12 @@ interface AdminUserDetailApiData {
   isUpdate?: boolean;
   isHighSchool?: boolean | null;
   trainerName?: string | null;
+  representatives?: Partial<Record<AdminRepresentativeRole, {
+    fullName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    schoolName?: string | null;
+  }>>;
   Participants?: AdminTeamMember[];
 }
 
@@ -345,6 +360,17 @@ export async function getAdminAccountDetail(userId: number): Promise<AdminAccoun
   }
 
   const data = response.DT ?? {};
+  const leaderName = data.representatives?.LEADER?.fullName?.trim() || '';
+  const coachName = data.representatives?.COACH?.fullName?.trim() || '';
+  const fallbackName = data.trainerName?.trim() || '';
+
+  const representativeRole: AdminRepresentativeRole | null = leaderName
+    ? 'LEADER'
+    : coachName || fallbackName
+    ? 'COACH'
+    : null;
+
+  const representativeName = leaderName || coachName || fallbackName || null;
 
   return {
     id: data.id ?? userId,
@@ -357,6 +383,107 @@ export async function getAdminAccountDetail(userId: number): Promise<AdminAccoun
     isUpdate: data.isUpdate ?? null,
     isHighSchool: data.isHighSchool ?? null,
     trainerName: data.trainerName ?? null,
+    representativeName,
+    representativeRole,
     participants: Array.isArray(data.Participants) ? data.Participants : [],
   };
+}
+
+export async function deleteAdminAccount(userId: number): Promise<void> {
+  const response = await apiRequest<ApiResult<''>>(`/api/v1/deleteUser/${userId}`, {
+    method: 'DELETE',
+  });
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Xóa tài khoản thất bại');
+  }
+}
+
+// ===== HELP REQUEST INTERFACES & FUNCTIONS =====
+
+export interface AdminHelpRequest {
+  id: number;
+  userId: number;
+  userEmail: string;
+  username: string;
+  fullName: string;
+  teamId?: number;
+  teamName: string;
+  schoolName: string;
+  title: string;
+  content: string;
+  isSolve: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminHelpRequestDetail extends AdminHelpRequest {
+  // Extended detail interface
+}
+
+export interface AdminHelpRequestsData {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  requests: AdminHelpRequest[];
+}
+
+export async function getAdminHelpRequests(
+  page: number = 1,
+  limit: number = 10,
+  filters?: { status?: string; search?: string }
+): Promise<AdminHelpRequestsData> {
+  const searchParams = new URLSearchParams();
+  searchParams.append('page', page.toString());
+  searchParams.append('limit', limit.toString());
+  if (filters?.status) searchParams.append('status', filters.status);
+  if (filters?.search) searchParams.append('search', filters.search);
+
+  const response = await apiRequest<ApiResult<AdminHelpRequestsData>>(
+    `/api/v1/getAllHelpRequest?${searchParams.toString()}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Lấy danh sách yêu cầu hỗ trợ thất bại');
+  }
+
+  return response.DT;
+}
+
+export async function getAdminHelpRequestDetail(requestId: number): Promise<AdminHelpRequestDetail> {
+  const response = await apiRequest<ApiResult<AdminHelpRequestDetail>>(
+    `/api/v1/getHelpRequestById/${requestId}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Lấy chi tiết yêu cầu hỗ trợ thất bại');
+  }
+
+  return response.DT;
+}
+
+export async function solveAdminHelpRequest(
+  requestId: number,
+  isSolve: boolean = true
+): Promise<{ id: number; isSolve: boolean }> {
+  const response = await apiRequest<ApiResult<{ id: number; isSolve: boolean }>>(
+    `/api/v1/solveHelpRequest/${requestId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ isSolve }),
+    }
+  );
+
+  if (response.EC !== 0) {
+    throw new Error(response.EM || 'Cập nhật trạng thái yêu cầu hỗ trợ thất bại');
+  }
+
+  return response.DT;
 }

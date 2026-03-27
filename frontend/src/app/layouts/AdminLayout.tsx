@@ -1,4 +1,4 @@
-import { Bell, Home, LayoutDashboard, ShieldCheck, UserRound, Users, Users2 } from 'lucide-react';
+import { AlertCircle, Bell, Home, LayoutDashboard, ShieldCheck, UserRound, Users, Users2 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import LogoutButton from '../../components/LogoutButton';
 import { useAppSelector } from '../redux/hooks';
@@ -20,6 +20,12 @@ const navItems = [
     to: '/dashboard/accounts',
     label: 'Thông tin tài khoản',
     icon: UserRound,
+    exact: true,
+  },
+  {
+    to: '/dashboard/help-requests',
+    label: 'Yêu cầu hỗ trợ',
+    icon: AlertCircle,
     exact: true,
   },
   {
