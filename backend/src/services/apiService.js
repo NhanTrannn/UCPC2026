@@ -1,11 +1,12 @@
 const db = require('../models/index');
 const bycrypt = require('bcryptjs');
-const { Op, where } = require('sequelize');
+const { Op, where, fn, col } = require('sequelize');
 const { generateToken, verifyToken } = require('../controllers/JWTActions');
 const { checkWL, clearWL, createWL } = require('../controllers/checkWhiteList');
 const _ = require('lodash');
 const csv = require('fast-csv');
 const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const htmlMinifier = require('html-minifier');
 
@@ -25,6 +26,235 @@ const ReplaceVariable = (htmlContent, dynamicData) => {
     return htmlContent;
 }
 
+const MAIL_TEMPLATE_DIR = path.join(__dirname, '..', 'templates', 'mail');
+
+const loadMailTemplateFromFile = async (fileName, fallbackHtml = '') => {
+    try {
+        const templatePath = path.join(MAIL_TEMPLATE_DIR, fileName);
+        const html = await fs.promises.readFile(templatePath, 'utf8');
+        return html && html.trim() ? html : fallbackHtml;
+    } catch (error) {
+        console.error(`[mail-template] Failed to load ${fileName}:`, error?.message || error);
+        return fallbackHtml;
+    }
+};
+
+const REPRESENTATIVE_ROLE = {
+    LEADER: 'LEADER',
+    COACH: 'COACH'
+};
+
+const normalizeString = (value) => {
+    if (typeof value !== 'string') return '';
+    return value.trim();
+};
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
+const normalizeEmail = (value) => normalizeString(value).toLowerCase();
+
+const isValidEmailFormat = (value) => EMAIL_REGEX.test(normalizeEmail(value));
+
+const sendRegisterVerificationPIN = async (email) => {
+    const normalizedEmail = normalizeEmail(email);
+
+    await db.PIN.destroy({
+        where: {
+            email: normalizedEmail
+        }
+    });
+
+    const PIN = generatePIN(6);
+    const token = generateToken({ email: normalizedEmail, role: 'EMAIL_VERIFY', PIN });
+
+    let htmlContent = await loadMailTemplateFromFile(
+        'verify-email.html',
+        '<p>Ma xac thuc email cua ban la: <strong>{{PIN}}</strong>. Ma co hieu luc trong thoi gian ngan.</p>'
+    );
+
+    if (!htmlContent.includes('{{PIN}}')) {
+        htmlContent += '<p>Ma xac thuc email cua ban la: <strong>{{PIN}}</strong></p>';
+    }
+
+    htmlContent = ReplaceVariable(htmlContent, { PIN });
+
+    const sendResult = await apiSendingEmailService(normalizedEmail, 'Email Verification', htmlContent);
+    if (sendResult.EC !== 0) {
+        return sendResult;
+    }
+
+    await db.PIN.create({
+        email: normalizedEmail,
+        PINToken: token
+    });
+
+    return {
+        EM: 'Verification PIN sent',
+        EC: 0,
+        DT: ''
+    };
+};
+
+const pickFirstNonEmpty = (...values) => {
+    for (const value of values) {
+        const normalized = normalizeString(value);
+        if (normalized) return normalized;
+    }
+    return null;
+};
+
+const parseRepresentativeRole = (rawRole) => {
+    const role = normalizeString(rawRole).toUpperCase();
+    if (role === REPRESENTATIVE_ROLE.LEADER || role === REPRESENTATIVE_ROLE.COACH) {
+        return role;
+    }
+    return null;
+};
+
+const buildCoachRepresentativePayload = (data) => ({
+    role: REPRESENTATIVE_ROLE.COACH,
+    fullName: pickFirstNonEmpty(data?.coachName, data?.coach?.fullName, data?.trainerName),
+    phone: pickFirstNonEmpty(data?.coachPhone, data?.coach?.phone, data?.trainerPhone),
+    email: pickFirstNonEmpty(data?.coachEmail, data?.coach?.email),
+    schoolName: pickFirstNonEmpty(data?.coachSchoolName, data?.coach?.schoolName)
+});
+
+const buildLeaderRepresentativePayload = (data) => {
+    const firstParticipant = data?.Participants?.[0] || {};
+
+    return {
+        role: REPRESENTATIVE_ROLE.LEADER,
+        fullName: pickFirstNonEmpty(data?.leaderName, data?.leader?.fullName, firstParticipant?.fullName),
+        phone: pickFirstNonEmpty(data?.leaderPhone, data?.leader?.phone, firstParticipant?.phone),
+        email: pickFirstNonEmpty(data?.leaderEmail, data?.leader?.email),
+        schoolName: pickFirstNonEmpty(data?.leaderSchoolName, data?.leader?.schoolName, firstParticipant?.schoolName)
+    };
+};
+
+const upsertTeamRepresentative = async (teamId, payload, transaction) => {
+    const hasData = !!(payload.fullName || payload.phone || payload.email || payload.schoolName);
+
+    if (!hasData) {
+        await db.Representative.destroy({
+            where: {
+                teamId,
+                role: payload.role
+            },
+            transaction
+        });
+        return;
+    }
+
+    const representative = await db.Representative.findOne({
+        where: {
+            teamId,
+            role: payload.role
+        },
+        transaction
+    });
+
+    if (representative) {
+        await db.Representative.update({
+            fullName: payload.fullName,
+            phone: payload.phone,
+            email: payload.email,
+            schoolName: payload.schoolName
+        }, {
+            where: {
+                teamId,
+                role: payload.role
+            },
+            transaction
+        });
+        return;
+    }
+
+    await db.Representative.create({
+        teamId,
+        role: payload.role,
+        fullName: payload.fullName,
+        phone: payload.phone,
+        email: payload.email,
+        schoolName: payload.schoolName
+    }, { transaction });
+};
+
+const upsertTeamRepresentatives = async (teamId, data, transaction) => {
+    const explicitRole = parseRepresentativeRole(data?.representativeRole);
+    const hasLeaderInput = !!(
+        normalizeString(data?.leaderName) ||
+        normalizeString(data?.leaderPhone) ||
+        normalizeString(data?.leaderEmail) ||
+        normalizeString(data?.leaderSchoolName)
+    );
+
+    const selectedRole = explicitRole || (hasLeaderInput ? REPRESENTATIVE_ROLE.LEADER : REPRESENTATIVE_ROLE.COACH);
+
+    const selectedPayload = selectedRole === REPRESENTATIVE_ROLE.LEADER
+        ? buildLeaderRepresentativePayload(data)
+        : buildCoachRepresentativePayload(data);
+
+    const oppositeRole = selectedRole === REPRESENTATIVE_ROLE.LEADER
+        ? REPRESENTATIVE_ROLE.COACH
+        : REPRESENTATIVE_ROLE.LEADER;
+
+    await upsertTeamRepresentative(teamId, selectedPayload, transaction);
+    await db.Representative.destroy({
+        where: {
+            teamId,
+            role: oppositeRole
+        },
+        transaction
+    });
+};
+
+const getTeamRepresentativesMap = async (teamId) => {
+    const rows = await db.Representative.findAll({
+        where: { teamId },
+        attributes: ['role', 'fullName', 'phone', 'email', 'schoolName'],
+        raw: true
+    });
+
+    return rows.reduce((acc, row) => {
+        acc[row.role] = {
+            fullName: row.fullName,
+            phone: row.phone,
+            email: row.email,
+            schoolName: row.schoolName
+        };
+        return acc;
+    }, {});
+};
+
+const getCoachName = (processData, representativesMap) => {
+    return representativesMap?.[REPRESENTATIVE_ROLE.COACH]?.fullName || processData?.trainerName || null;
+};
+
+const getPrimaryRepresentative = (representativesMap) => {
+    const leader = representativesMap?.[REPRESENTATIVE_ROLE.LEADER];
+    const coach = representativesMap?.[REPRESENTATIVE_ROLE.COACH];
+
+    const hasLeaderData = !!(leader?.fullName || leader?.schoolName || leader?.phone || leader?.email);
+    if (hasLeaderData) {
+        return {
+            role: REPRESENTATIVE_ROLE.LEADER,
+            fullName: leader?.fullName || null,
+            schoolName: leader?.schoolName || null
+        };
+    }
+
+    const hasCoachData = !!(coach?.fullName || coach?.schoolName || coach?.phone || coach?.email);
+    if (hasCoachData) {
+        return {
+            role: REPRESENTATIVE_ROLE.COACH,
+            fullName: coach?.fullName || null,
+            schoolName: coach?.schoolName || null
+        };
+    }
+
+    return null;
+};
+
 const generatePIN = (PinLength) => {
     // Khai báo một biến để lưu trữ mã PIN
     let pin = '';
@@ -43,19 +273,42 @@ const generatePIN = (PinLength) => {
     return pin;
 }
 const apiSendingEmailService = async (email, title, content) => {
+    const smtpEmail = String(process.env.EMAIL || '').trim();
+    const smtpPassword = String(process.env.EMAIL_PASSWORD || '').replace(/\s+/g, '');
+    const smtpDisplayName = String(process.env.EMAIL_NAME || 'UCPC').trim();
+
+    if (!smtpEmail || !smtpPassword) {
+        return {
+            EM: 'Send email failed: SMTP credentials are missing',
+            EC: 500,
+            DT: ''
+        }
+    }
+
+    const toEmail = String(email || '').trim();
+    if (!toEmail) {
+        return {
+            EM: 'Send email failed: recipient email is empty',
+            EC: 400,
+            DT: ''
+        }
+    }
+
     let transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL,
-            pass: process.env.EMAIL_PASSWORD
+            user: smtpEmail,
+            pass: smtpPassword
         }
     });
+
     let mailOptions = {
-        from: `"${process.env.EMAIL_NAME}" <${process.env.EMAIL}>`,
-        to: email,
+        from: `"${smtpDisplayName}" <${smtpEmail}>`,
+        to: toEmail,
         subject: title,
         html: content
     };
+
     try {
         await transporter.sendMail(mailOptions);
         return {
@@ -65,7 +318,7 @@ const apiSendingEmailService = async (email, title, content) => {
         }
     } catch (error) {
         return {
-            EM: 'Send email failed',
+            EM: `Send email failed: ${error?.message || 'Unknown error'}`,
             EC: 500,
             DT: ''
         }
@@ -73,10 +326,11 @@ const apiSendingEmailService = async (email, title, content) => {
 }
 const apiLoginService = async (email, password) => {
     try {
+        const loginIdentity = normalizeString(email);
         let user = {};
         let user1 = await db.User.findOne({
             where: {
-                email: email
+                email: loginIdentity
             },
             raw: true
         });
@@ -85,7 +339,7 @@ const apiLoginService = async (email, password) => {
         } else {
             let user2 = await db.User.findOne({
                 where: {
-                    username: email
+                    username: loginIdentity
                 },
                 raw: true
             });
@@ -102,6 +356,14 @@ const apiLoginService = async (email, password) => {
         }
         let check = bycrypt.compareSync(password, user.password);
         if (check) {
+            if (user.role === 'USER' && user.isEmailVerified === false) {
+                return {
+                    EM: 'Email has not been verified',
+                    EC: 403,
+                    DT: ''
+                }
+            }
+
             let payload = {
                 id: user.id,
                 email: user.email,
@@ -164,6 +426,8 @@ const apiLoginService = async (email, password) => {
                         birth: DateToString(participant.birth)
                     }
                 });
+                const representatives = await getTeamRepresentativesMap(teamData.id);
+                const coachName = getCoachName(detailData, representatives);
 
                 let data = {
                     id: accountInfo.id,
@@ -175,7 +439,9 @@ const apiLoginService = async (email, password) => {
                     isPaid: detailData.isPaid,
                     isUpdate: detailData.isUpdate,
                     isHighSchool: detailData.isHighSchool,
-                    trainerName: detailData.trainerName,
+                    trainerName: coachName,
+                    trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+                    representatives,
                     teamName: teamData.teamName,
                     Participants: [...participantData2]
                 };
@@ -218,10 +484,28 @@ const apiLoginService = async (email, password) => {
 }
 const apiRegisterService = async (email, password, username) => {
     try {
-        let checkUser = await db.User.findOne({
-            where: {
-                email: email
+        const normalizedEmail = normalizeEmail(email);
+        const normalizedUsername = normalizeString(username);
+        const normalizedPassword = typeof password === 'string' ? password : '';
+
+        if (!normalizedEmail || !normalizedUsername || !normalizedPassword) {
+            return {
+                EM: 'Username, email and password are required',
+                EC: 400,
+                DT: ''
             }
+        }
+
+        if (!isValidEmailFormat(normalizedEmail)) {
+            return {
+                EM: 'Invalid email format',
+                EC: 400,
+                DT: ''
+            }
+        }
+
+        let checkUser = await db.User.findOne({
+            where: where(fn('lower', col('email')), normalizedEmail)
         });
         if (checkUser) {
             return {
@@ -251,10 +535,11 @@ const apiRegisterService = async (email, password, username) => {
 
         try {
             user = await db.User.create({
-                email: email,
+                email: normalizedEmail,
                 password: hash,
-                username: username,
-                role: 'USER'
+                username: normalizedUsername,
+                role: 'USER',
+                isEmailVerified: false
             }, { transaction });
 
             team = await db.Team.create({
@@ -285,55 +570,25 @@ const apiRegisterService = async (email, password, username) => {
             }
         }
 
-        let title = 'Register Success';
-        let htmlContent = '';
-        try {
-            let id_template = await db.Settemplate.findOne({
-                where: {
-                    type: 'REGISTER'
-                },
-                attributes: ['id_template'],
-                raw: true
-            });
-            let template = await db.Template.findOne({
-                where: {
-                    id: id_template.id_template
-                },
-                attributes: ['data'],
-                raw: true
-            });
-            htmlContent = template.data;
-        } catch (error) {
+        const sendPINResult = await sendRegisterVerificationPIN(normalizedEmail);
+        if (sendPINResult.EC !== 0) {
             return {
-                EM: "Something went wrong with email",
+                EM: sendPINResult.EM || 'Register success but failed to send verification email',
                 EC: 500,
                 DT: ''
             }
         }
 
-        let result = await apiSendingEmailService(email, title, htmlContent)
-        console.log('result: ', result);
-
-        //prepare data to return
-        let payload = {
-            id: user.id,
-            email: user.email,
-            role: user.role
-        }
-        let access_token = generateToken(payload);
-        let noTeamData = {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "role": user.role,
-            "access_token": access_token,
-            "teamName": 'Not updated yet / admin account',
-            "Participants": []
-        }
         return {
-            EM: 'Register Success',
+            EM: 'Register Success. Please verify your email',
             EC: 0,
-            DT: noTeamData
+            DT: {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                role: user.role,
+                emailVerificationRequired: true
+            }
         }
 
     } catch (error) {
@@ -342,6 +597,207 @@ const apiRegisterService = async (email, password, username) => {
             EC: 500,
             DT: error
         }
+    }
+}
+
+const apiVerifyRegisterEmailService = async (email, PIN) => {
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPIN = normalizeString(PIN);
+
+    if (!normalizedEmail || !normalizedPIN) {
+        return {
+            EM: 'Email and PIN are required',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    if (!isValidEmailFormat(normalizedEmail)) {
+        return {
+            EM: 'Invalid email format',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    const user = await db.User.findOne({
+        where: where(fn('lower', col('email')), normalizedEmail),
+        raw: true
+    });
+
+    if (!user) {
+        return {
+            EM: 'User not found',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    if (user.isEmailVerified === true) {
+        const payload = {
+            id: user.id,
+            email: user.email,
+            role: user.role
+        };
+        const access_token = generateToken(payload);
+        return {
+            EM: 'Email already verified',
+            EC: 0,
+            DT: {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                role: user.role,
+                access_token,
+                teamName: 'Not updated yet / admin account',
+                Participants: []
+            }
+        }
+    }
+
+    const checkPIN = await db.PIN.findOne({
+        where: {
+            email: normalizedEmail
+        },
+        raw: true
+    });
+
+    if (!checkPIN) {
+        return {
+            EM: 'PIN not found, please request a new one',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    const checkPinToken = verifyToken(`Bearer ${checkPIN.PINToken}`);
+
+    if (checkPinToken.EC !== 0 && checkPinToken.EM === 'jwt expired') {
+        return {
+            EC: -999,
+            EM: 'Your PIN is expired, please try again!',
+            DT: ''
+        };
+    }
+
+    if (checkPinToken.EC !== 0 || checkPinToken?.DT?.role !== 'EMAIL_VERIFY') {
+        return {
+            EM: 'Invalid verification PIN token',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    if (checkPinToken.DT.PIN !== normalizedPIN) {
+        return {
+            EM: 'PIN is incorrect',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    await db.User.update({
+        isEmailVerified: true
+    }, {
+        where: {
+            id: user.id
+        }
+    });
+
+    await db.PIN.destroy({
+        where: {
+            email: normalizedEmail
+        }
+    });
+
+    let title = 'Register Success';
+    let htmlContent = await loadMailTemplateFromFile(
+        'register-success.html',
+        '<p>Dang ky tai khoan thanh cong. Chuc ban co mot mua thi that tot.</p>'
+    );
+    htmlContent = ReplaceVariable(htmlContent, {
+        username: user.username || '',
+        email: user.email || ''
+    });
+
+    await apiSendingEmailService(normalizedEmail, title, htmlContent);
+
+    const payload = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+    };
+    const access_token = generateToken(payload);
+
+    return {
+        EM: 'Email verified successfully',
+        EC: 0,
+        DT: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            role: user.role,
+            access_token,
+            teamName: 'Not updated yet / admin account',
+            Participants: []
+        }
+    }
+};
+
+const apiResendRegisterVerificationService = async (email) => {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail) {
+        return {
+            EM: 'Email is required',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    if (!isValidEmailFormat(normalizedEmail)) {
+        return {
+            EM: 'Invalid email format',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    const user = await db.User.findOne({
+        where: where(fn('lower', col('email')), normalizedEmail),
+        attributes: ['id', 'isEmailVerified'],
+        raw: true
+    });
+
+    if (!user) {
+        return {
+            EM: 'User not found',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    if (user.isEmailVerified) {
+        return {
+            EM: 'Email already verified',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    const sendPINResult = await sendRegisterVerificationPIN(normalizedEmail);
+    if (sendPINResult.EC !== 0) {
+        return {
+            EM: sendPINResult.EM || 'Failed to resend verification PIN',
+            EC: 500,
+            DT: ''
+        }
+    }
+
+    return {
+        EM: 'Resend verification PIN success',
+        EC: 0,
+        DT: ''
     }
 }
 const apiUpdateInfoService = async (data) => {
@@ -367,6 +823,15 @@ const apiUpdateInfoService = async (data) => {
         const [day, month, year] = date.split("/").map(Number);
         return new Date(year, month - 1, day);
     }
+
+    if (!data || !data.userId) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
     let isUpdate = await db.User.findOne({
         where: {
             id: data.userId
@@ -387,6 +852,13 @@ const apiUpdateInfoService = async (data) => {
             }
         ]
     });
+    if (!isUpdate) {
+        return {
+            EM: 'User not found',
+            EC: 404,
+            DT: ''
+        }
+    }
     if (isUpdate['Team.Process.isUpdate'] !== null && isUpdate['Team.Process.isUpdate'] !== false) {
         return {
             EM: 'User can update info only once',
@@ -424,7 +896,8 @@ const apiUpdateInfoService = async (data) => {
                 paidImage: data.paidImage ? data.paidImage : null,
                 isPaid: false,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null
+                trainerName: buildCoachRepresentativePayload(data).fullName,
+                rejectionReason: null
             }, { transaction });
 
         }
@@ -440,7 +913,8 @@ const apiUpdateInfoService = async (data) => {
             await db.Process.update({
                 paidImage: data.paidImage ? data.paidImage : null,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null
+                trainerName: buildCoachRepresentativePayload(data).fullName,
+                rejectionReason: null
             }, {
                 where: {
                     teamId: team.id
@@ -460,6 +934,8 @@ const apiUpdateInfoService = async (data) => {
                 schoolName: participant.schoolName || null
             }, { transaction });
         }
+        await upsertTeamRepresentatives(team.id, data, transaction);
+
         await db.Process.update({
             isUpdate: 1
         }, {
@@ -472,9 +948,11 @@ const apiUpdateInfoService = async (data) => {
         await transaction.commit();
     } catch (error) {
         await transaction.rollback();
+        console.error('[apiUpdateInfoService] transaction failed:', error);
+        const detailMessage = error?.message || 'Unknown error';
         return {
-            EM: "Something went wrong, please try again",
-            EC: 404,
+            EM: `[UCPC-DBG-20260322] Something went wrong: ${detailMessage}`,
+            EC: 500,
             DT: ''
         }
 
@@ -519,6 +997,8 @@ const apiUpdateInfoService = async (data) => {
                 birth: DateToString(participant.birth)
             }
         });
+        const representatives = await getTeamRepresentativesMap(team.id);
+        const coachName = getCoachName(detailDataTemp, representatives);
         //console.log('check parti: ', participantDataTemp);
         let dataTemp = {
             id: accountInfoTemp.id,
@@ -530,7 +1010,9 @@ const apiUpdateInfoService = async (data) => {
             isPaid: detailDataTemp.isPaid,
             isUpdate: detailDataTemp.isUpdate,
             isHighSchool: detailDataTemp.isHighSchool,
-            trainerName: detailDataTemp.trainerName,
+            trainerName: coachName,
+            trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+            representatives,
             teamName: teamDataTemp.teamName,
             Participants: [...participantDataTemp2]
         };
@@ -574,6 +1056,7 @@ const apiSendHelpRequestService = async (userId, title, data) => {
     try {
         await db.Request.create({
             teamId: team.id,
+            userId: userId.id,
             title: title,
             data: data,
             isSolve: false
@@ -594,6 +1077,86 @@ const apiSendHelpRequestService = async (userId, title, data) => {
 
 
 
+}
+
+const apiUploadPaymentProofService = async (data) => {
+    if (!data || !data.userId) {
+        return {
+            EM: 'Unauthorized',
+            EC: 401,
+            DT: ''
+        }
+    }
+
+    if (!data.paidImage || String(data.paidImage).trim() === '') {
+        return {
+            EM: 'Missing paid image',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    let team = await db.Team.findOne({
+        where: {
+            userId: data.userId
+        },
+        attributes: ['id'],
+        raw: true
+    });
+
+    if (!team) {
+        return {
+            EM: 'This user has not updated info yet',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    let process = await db.Process.findOne({
+        where: {
+            teamId: team.id
+        },
+        raw: true
+    });
+
+    if (!process) {
+        return {
+            EM: 'There is something wrong, please try again',
+            EC: 404,
+            DT: ''
+        }
+    }
+
+    if (process.isPaid === true) {
+        return {
+            EM: 'Payment has been confirmed before',
+            EC: 400,
+            DT: ''
+        }
+    }
+
+    try {
+        await db.Process.update({
+            paidImage: data.paidImage,
+            rejectionReason: null
+        }, {
+            where: {
+                teamId: team.id
+            }
+        });
+
+        return {
+            EM: 'Upload payment proof success',
+            EC: 0,
+            DT: ''
+        }
+    } catch (error) {
+        return {
+            EM: 'Upload payment proof failed',
+            EC: 500,
+            DT: ''
+        }
+    }
 }
 const apiChangePasswordService = async (requester, password, newPassword) => {
 
@@ -644,134 +1207,6 @@ const apiChangePasswordService = async (requester, password, newPassword) => {
     } catch (error) {
         return {
             EM: 'Change password failed',
-            EC: 500,
-            DT: ''
-        }
-    }
-
-}
-const apiGetAllHelpRequestService = async (page, limit) => {
-    let requests;
-    if (page === 0 || limit === 0) {
-        requests = await db.Request.findAndCountAll({
-            attributes: ['id', 'title', 'data', 'isSolve'],
-            include: [
-                { model: db.Team, attributes: ['teamName'] }
-            ],
-            raw: true
-        });
-    }
-    else {
-        let offset = (page - 1) * limit;
-        requests = await db.Request.findAndCountAll({
-            attributes: ['id', 'title', 'data', 'isSolve'],
-            include: [
-                { model: db.Team, attributes: ['teamName'] }
-            ],
-            offset: offset,
-            limit: limit,
-            raw: true
-        });
-    }
-    if (!requests) {
-        return {
-            EM: 'Request not found',
-            EC: 404,
-            DT: ''
-        }
-    }
-    let data = requests.rows.map(request => {
-        return {
-            id: request.id,
-            title: request.title,
-            data: request.data,
-            isSolve: request.isSolve,
-            teamName: request['Team.teamName']
-        }
-    });
-    return {
-        EM: 'Get all help request success',
-        EC: 0,
-        DT: {
-            count: requests.count,
-            rows: data
-        }
-    }
-}
-const apiGetHelpRequestByIdService = async (id) => {
-    let request = await db.Request.findOne({
-        where: {
-            id: id
-        },
-        attributes: ['id', 'title', 'data', 'isSolve', 'response'],
-        raw: true,
-        include: [
-            { model: db.Team, attributes: ['teamName'] }
-        ]
-    });
-    if (!request) {
-        return {
-            EM: 'Request not found',
-            EC: 404,
-            DT: ''
-        }
-    }
-    let data = {
-        id: request.id,
-        title: request.title,
-        data: request.data,
-        isSolve: request.isSolve,
-        response: request.response,
-        teamName: request['Team.teamName']
-    }
-
-    return {
-        EM: 'Get help request by id success',
-        EC: 0,
-        DT: data
-    }
-
-}
-const apiSolveHelpRequestService = async (id, response) => {
-
-    let request = await db.Request.findOne({
-        where: {
-            id: id
-        },
-        raw: true
-    });
-
-    if (!request) {
-        return {
-            EM: 'Request not found',
-            EC: 404,
-            DT: ''
-        }
-    }
-    if (request.isSolve === 1) {
-        return {
-            EM: 'Request has been solved',
-            EC: 400,
-            DT: ''
-        }
-    }
-    try {
-        await db.Request.update({
-            isSolve: 1,
-            response: response
-        }, {
-            where: {
-                id: id
-            }
-        });
-        return {
-            EM: 'Solve help request success',
-            EC: 0,
-            DT: ''
-        }
-    } catch (error) {
-        return {
-            EM: 'Solve help request failed',
             EC: 500,
             DT: ''
         }
@@ -969,7 +1404,7 @@ const apiGetUserByIdService = async (id) => {
             where: {
                 teamId: teamData.id
             },
-            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName', 'rejectionReason'],
             raw: true
         });
         let participantData = await db.Participant.findAll({
@@ -985,6 +1420,8 @@ const apiGetUserByIdService = async (id) => {
                 birth: DateToString(participant.birth)
             }
         });
+        const representatives = await getTeamRepresentativesMap(teamData.id);
+        const coachName = getCoachName(detailData, representatives);
 
         let data = {
             id: accountInfo.id,
@@ -995,7 +1432,10 @@ const apiGetUserByIdService = async (id) => {
             isPaid: detailData.isPaid,
             isUpdate: detailData.isUpdate,
             isHighSchool: detailData.isHighSchool,
-            trainerName: detailData.trainerName,
+            trainerName: coachName,
+            trainerPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+            representatives,
+            rejectionReason: detailData.rejectionReason,
             teamName: teamData.teamName,
             Participants: [...participantData2]
         };
@@ -1008,20 +1448,24 @@ const apiGetUserByIdService = async (id) => {
     }
 }
 const apiDeleteUserService = async (id) => {
-    if (id === 1) {
+    if (!id || Number.isNaN(Number(id))) {
         return {
-            EM: 'Cannot delete admin account',
+            EM: 'Invalid user id',
             EC: 400,
             DT: ''
         }
     }
+
+    const userId = Number(id);
+
     let transaction;
     try {
         transaction = await db.sequelize.transaction();
         let user = await db.User.findOne({
             where: {
-                id: id
+                id: userId
             },
+            attributes: ['id', 'email', 'role'],
             transaction
         });
         if (!user) {
@@ -1032,22 +1476,41 @@ const apiDeleteUserService = async (id) => {
                 DT: ''
             }
         }
-        let team = await db.Team.findOne({
-            where: {
-                userId: id
-            },
-            transaction
-        });
-        let teamId = team ? team.id : null;
 
-        if (teamId) {
-            await db.Process.destroy({ where: { teamId: teamId }, transaction });
-            await db.Participant.destroy({ where: { teamId: teamId }, transaction });
-            await db.Request.destroy({ where: { teamId: teamId }, transaction });
-            await db.Team.destroy({ where: { userId: id }, transaction });
+        if (user.role === 'ADMIN') {
+            await transaction.rollback();
+            return {
+                EM: 'Cannot delete admin account',
+                EC: 400,
+                DT: ''
+            }
         }
 
-        await db.User.destroy({ where: { id: id }, transaction });
+        let teams = await db.Team.findAll({
+            where: {
+                userId: userId
+            },
+            attributes: ['id'],
+            raw: true,
+            transaction
+        });
+
+        const teamIds = teams.map((team) => team.id).filter(Boolean);
+
+        if (teamIds.length > 0) {
+            await db.Process.destroy({ where: { teamId: { [Op.in]: teamIds } }, transaction });
+            await db.Participant.destroy({ where: { teamId: { [Op.in]: teamIds } }, transaction });
+            await db.Representative.destroy({ where: { teamId: { [Op.in]: teamIds } }, transaction });
+            await db.Request.destroy({ where: { teamId: { [Op.in]: teamIds } }, transaction });
+            await db.Team.destroy({ where: { id: { [Op.in]: teamIds } }, transaction });
+        }
+
+        if (user.email) {
+            await db.PIN.destroy({ where: { email: user.email }, transaction });
+            await db.Whitelist.destroy({ where: { email: user.email }, transaction });
+        }
+
+        await db.User.destroy({ where: { id: userId }, transaction });
         await transaction.commit();
 
         return {
@@ -1161,32 +1624,25 @@ const apiConfirmPaymentService = async (id) => {
                 teamId: team.id
             }
         });
+
         let title = 'Payment Confirmed';
-        let htmlContent = '';
-        try {
-            let id_template = await db.Settemplate.findOne({
-                where: {
-                    type: 'PAYMENT'
-                },
-                attributes: ['id_template'],
-                raw: true
+        let htmlContent = await loadMailTemplateFromFile(
+            'payment-confirmed.html',
+            '<p>Thanh toan cua doi ban da duoc xac nhan. Cam on ban da hoan tat le phi.</p>'
+        );
+        htmlContent = ReplaceVariable(htmlContent, {
+            teamName: team.teamName || 'Doi thi',
+            email: user.email || ''
+        });
+
+        const emailResult = await apiSendingEmailService(user.email, title, htmlContent);
+        if (emailResult?.EC !== 0) {
+            console.error('[apiConfirmPaymentService] Failed to send payment confirmation email:', {
+                userEmail: user.email,
+                error: emailResult?.EM || 'Unknown error'
             });
-            let template = await db.Template.findOne({
-                where: {
-                    id: id_template.id_template
-                },
-                attributes: ['data'],
-                raw: true
-            });
-            htmlContent = template.data;
-        } catch (error) {
-            return {
-                EM: "Something went wrong with email",
-                EC: 500,
-                DT: ''
-            }
         }
-        await apiSendingEmailService(user.email, title, htmlContent);
+
         return {
             EM: 'Confirm payment success',
             EC: 0,
@@ -1475,20 +1931,22 @@ const apiUpdateUserByAdminService = async (data) => {
                 paidImage: data.paidImage ? data.paidImage : null,
                 isPaid: false,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null,
+                trainerName: buildCoachRepresentativePayload(data).fullName,
                 isUpdate: 1
             }, { transaction });
         } else {
             await db.Process.update({
                 paidImage: data.paidImage ? data.paidImage : null,
                 isHighSchool: data.isHighSchool === 'true' ? true : false,
-                trainerName: data.trainerName ? data.trainerName : null,
+                trainerName: buildCoachRepresentativePayload(data).fullName,
                 isUpdate: 1
             }, {
                 where: { teamId: team.id },
                 transaction
             });
         }
+
+        await upsertTeamRepresentatives(team.id, data, transaction);
 
         await transaction.commit();
     } catch (error) {
@@ -1695,7 +2153,7 @@ const apiForgotPasswordService = async (email) => {
     let PIN = generatePIN(6);
 
     let token = generateToken({ email: email, role: 'RESET_PASSWORD', PIN: PIN });
-    let htmlContent = '';
+    let templateHtml = '';
     try {
         let id_template = await db.Settemplate.findOne({
             where: {
@@ -1704,18 +2162,30 @@ const apiForgotPasswordService = async (email) => {
             attributes: ['id_template'],
             raw: true
         });
-        htmlContent = await db.Template.findOne({
-            where: {
-                id: id_template.id_template
-            },
-            attributes: ['data'],
-            raw: true
-        });
+
+        if (id_template?.id_template) {
+            const template = await db.Template.findOne({
+                where: {
+                    id: id_template.id_template
+                },
+                attributes: ['data'],
+                raw: true
+            });
+            templateHtml = template?.data || '';
+        }
     } catch (error) {
-        return {
-            EM: "Something went wrong with email",
-            EC: 500,
-            DT: ''
+        // Continue with file-based fallback template below.
+        templateHtml = '';
+    }
+
+    if (!templateHtml || !templateHtml.includes('{{PIN}}')) {
+        templateHtml = await loadMailTemplateFromFile(
+            'forgot-password.html',
+            '<p>Your password reset PIN is: <strong>{{PIN}}</strong></p>'
+        );
+
+        if (!templateHtml.includes('{{PIN}}')) {
+            templateHtml += '<p>Your password reset PIN is: <strong>{{PIN}}</strong></p>';
         }
     }
 
@@ -1723,7 +2193,7 @@ const apiForgotPasswordService = async (email) => {
         PIN: PIN
     }
 
-    let htmlContentCopy = ReplaceVariable(htmlContent.data, dynamicData);
+    let htmlContentCopy = ReplaceVariable(templateHtml, dynamicData);
 
     let title = 'Reset Password';
     try {
@@ -1749,6 +2219,21 @@ const apiForgotPasswordService = async (email) => {
 
 }
 const apiResetPasswordByUserService = async (email, PIN, newPassword) => {
+    // Verify email exists in User table
+    let checkUserExists = await db.User.findOne({
+        where: {
+            email: email
+        },
+        raw: true
+    });
+
+    if (!checkUserExists) {
+        return {
+            EM: 'Email not found in system',
+            EC: 404,
+            DT: ''
+        }
+    }
 
     let checkPIN = await db.PIN.findOne({
         where: {
@@ -1812,6 +2297,67 @@ const apiResetPasswordByUserService = async (email, PIN, newPassword) => {
         }
     }
 }
+
+const getTeamStatusFromProcess = (process) => {
+    if (process?.isUpdate === true && process?.isPaid === true) {
+        return 'Đã duyệt';
+    }
+
+    if (process?.isUpdate === true) {
+        return 'Chờ duyệt';
+    }
+
+    return 'Khởi tạo';
+}
+
+const mapStatusToProcessFlags = (status, rejectionReason) => {
+    if (status === 'Đã duyệt') {
+        return {
+            isUpdate: true,
+            isPaid: true,
+            rejectionReason: null
+        };
+    }
+
+    if (status === 'Chờ duyệt') {
+        return {
+            isUpdate: true,
+            isPaid: false,
+            rejectionReason: rejectionReason && String(rejectionReason).trim().length > 0
+                ? String(rejectionReason).trim()
+                : null
+        };
+    }
+
+    if (status === 'Khởi tạo') {
+        return {
+            isUpdate: false,
+            isPaid: false,
+            rejectionReason: null
+        };
+    }
+
+    return null;
+}
+
+const buildTeamSchoolLabel = (participantRows, fallbackIsHighSchool) => {
+    const schoolSet = new Set();
+
+    participantRows.forEach((participant) => {
+        const schoolName = (participant.schoolName || '').trim();
+        if (schoolName) {
+            schoolSet.add(schoolName);
+        }
+    });
+
+    const schools = Array.from(schoolSet);
+    if (schools.length > 0) {
+        return schools.join('\n');
+    }
+
+    return fallbackIsHighSchool ? 'Khối THPT' : 'Khối Đại học';
+}
+
 const apiGetDashBoardService = async () => {
 
     /**
@@ -1821,63 +2367,214 @@ const apiGetDashBoardService = async () => {
      *
      */
     try {
-        let totalUser = await db.User.count();
-        if (totalUser === 1) {
-            return {
-                EM: 'There is no user registered',
-                EC: -1,
-                DT: ''
+        const totalUser = await db.User.count({
+            where: {
+                role: 'USER'
             }
-        }
-        console.log("total user: ", totalUser - 1)
+        });
 
-
-        let totalUpdatedInfo = await db.Process.count({
+        const totalUpdatedInfo = await db.Process.count({
             where: {
                 isUpdate: true
             }
         });
 
-        console.log("total updated info: ", totalUpdatedInfo)
-
-        let totalPaid = await db.Process.count({
+        const totalPaid = await db.Process.count({
             where: {
                 isPaid: true
             }
         });
 
-        console.log("total paid: ", totalPaid)
-        let totalUnpaid = await db.Process.count({
+        const dashboardUsers = await db.User.findAll({
             where: {
-                isPaid: false
-            }
+                role: 'USER'
+            },
+            attributes: ['id', 'email', 'username'],
+            include: [
+                {
+                    model: db.Team,
+                    attributes: ['id', 'teamName'],
+                    required: false,
+                    include: [
+                        {
+                            model: db.Process,
+                            attributes: ['isPaid', 'isUpdate'],
+                            required: false
+                        }
+                    ]
+                }
+            ],
+            raw: true
         });
 
-        console.log("total unpaid: ", totalUnpaid)
-        let totalUnsolvedRequest = await db.Request.count({
+        const unpaidAccounts = dashboardUsers
+            .filter((user) => user['Team.Process.isPaid'] !== true)
+            .map((user) => {
+                const process = {
+                    isPaid: user['Team.Process.isPaid'],
+                    isUpdate: user['Team.Process.isUpdate']
+                };
+
+                return {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    teamName: user['Team.teamName'] && user['Team.teamName'].trim().length > 0
+                        ? user['Team.teamName']
+                        : 'Chưa cập nhật',
+                    status: getTeamStatusFromProcess(process)
+                };
+            });
+
+        const totalUnpaid = unpaidAccounts.length;
+
+        const totalUnsolvedRequest = await db.Request.count({
             where: {
                 isSolve: false
             }
         });
 
-        console.log("total unsolved request: ", totalUnsolvedRequest)
-        let totalUnupdatedInfo = await db.Process.count({
+        const totalUnupdatedInfo = await db.Process.count({
             where: {
                 isUpdate: false
             }
         });
 
-        console.log("total unupdated info: ", totalUnupdatedInfo)
-        let data = {
-            totalUser: totalUser - 1,
-            totalUpdatedInfo: totalUpdatedInfo,
-            totalPaid: totalPaid,
-            totalUnpaid: totalUnpaid,
-            totalUnsolvedRequest: totalUnsolvedRequest,
-            totalUnupdatedInfo: totalUnupdatedInfo
-        }
+        const totalRegisteredTeams = await db.Team.count({
+            where: {
+                teamName: {
+                    [Op.not]: null
+                }
+            }
+        });
 
-        console.log('check data: ', data);
+        const participantSchools = await db.Participant.findAll({
+            where: {
+                schoolName: {
+                    [Op.not]: null,
+                    [Op.ne]: ''
+                }
+            },
+            attributes: ['teamId', 'schoolName'],
+            raw: true
+        });
+
+        const processRows = await db.Process.findAll({
+            attributes: ['teamId', 'isHighSchool'],
+            raw: true
+        });
+
+        const teamBlockMap = new Map();
+        processRows.forEach((processItem) => {
+            teamBlockMap.set(processItem.teamId, processItem.isHighSchool);
+        });
+
+        const allSchoolSet = new Set();
+        const highSchoolSet = new Set();
+        const universitySet = new Set();
+        const schoolTeamsMap = new Map();
+
+        participantSchools.forEach((item) => {
+            const schoolName = (item.schoolName || '').trim();
+            if (!schoolName) {
+                return;
+            }
+
+            const teamId = item.teamId;
+            if (!schoolTeamsMap.has(schoolName)) {
+                schoolTeamsMap.set(schoolName, new Set());
+            }
+
+            if (teamId) {
+                schoolTeamsMap.get(schoolName).add(teamId);
+            }
+
+            allSchoolSet.add(schoolName);
+
+            const isHighSchool = teamBlockMap.get(teamId);
+
+            if (isHighSchool === true) {
+                highSchoolSet.add(schoolName);
+                return;
+            }
+
+            if (isHighSchool === false) {
+                universitySet.add(schoolName);
+            }
+        });
+
+        const totalSchools = allSchoolSet.size;
+        const totalHighSchool = highSchoolSet.size;
+        const totalUniversity = universitySet.size;
+        const participatingSchools = Array.from(schoolTeamsMap.entries())
+            .map(([name, teamIds]) => ({
+                name,
+                teams: teamIds.size
+            }))
+            .sort((left, right) => {
+                if (right.teams !== left.teams) {
+                    return right.teams - left.teams;
+                }
+
+                return left.name.localeCompare(right.name, 'vi');
+            });
+
+        const allTeams = await db.Team.findAll({
+            where: {
+                teamName: {
+                    [Op.not]: null
+                }
+            },
+            attributes: ['id', 'teamName', 'createdAt', 'updatedAt'],
+            order: [['updatedAt', 'DESC']],
+            raw: true
+        });
+
+        const allTeamsData = await Promise.all(allTeams.map(async (team) => {
+            const process = await db.Process.findOne({
+                where: {
+                    teamId: team.id
+                },
+                attributes: ['isPaid', 'isUpdate', 'isHighSchool', 'trainerName'],
+                raw: true
+            });
+            const representatives = await getTeamRepresentativesMap(team.id);
+            const primaryRepresentative = getPrimaryRepresentative(representatives);
+
+            const status = getTeamStatusFromProcess(process);
+
+            return {
+                id: team.id,
+                name: team.teamName,
+                coach: primaryRepresentative?.fullName || process?.trainerName || 'Chưa cập nhật',
+                school: primaryRepresentative?.schoolName || 'Chưa cập nhật',
+                status,
+                createdAt: team.createdAt,
+                updatedAt: team.updatedAt
+            };
+        }));
+
+        const recentTeams = allTeamsData.slice(0, 5);
+
+        const data = {
+            // Keep legacy keys for backward compatibility.
+            totalUser,
+            totalUpdatedInfo,
+            totalPaid,
+            totalUnpaid,
+            totalUnsolvedRequest,
+            totalUnupdatedInfo,
+            // Additional dashboard data for the new admin UI.
+            totalRegisteredTeams,
+            totalSchools,
+            totalHighSchool,
+            totalUniversity,
+            participatingSchools,
+            unpaidAccounts,
+            recentTeams,
+            allTeams: allTeamsData
+        };
+
         return {
             EM: 'Get dashboard success',
             EC: 0,
@@ -1890,6 +2587,375 @@ const apiGetDashBoardService = async () => {
             EC: 500,
             DT: error
         }
+    }
+}
+const apiGetTeamDetailService = async (teamId) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id', 'userId', 'teamName', 'createdAt', 'updatedAt'],
+            raw: true
+        });
+
+        if (!team) {
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        const process = await db.Process.findOne({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['paidImage', 'isPaid', 'isUpdate', 'isHighSchool', 'trainerName', 'rejectionReason'],
+            raw: true
+        });
+
+        const participants = await db.Participant.findAll({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['id', 'fullName', 'citizenId', 'phone', 'birth', 'schoolName'],
+            order: [['createdAt', 'ASC']],
+            raw: true
+        });
+
+        const participantsData = participants.map((participant) => ({
+            ...participant,
+            birth: participant.birth ? DateToString(new Date(participant.birth)) : null
+        }));
+        const representatives = await getTeamRepresentativesMap(team.id);
+        const primaryRepresentative = getPrimaryRepresentative(representatives);
+
+        const status = getTeamStatusFromProcess(process);
+        const school = primaryRepresentative?.schoolName || 'Chưa cập nhật';
+
+        return {
+            EM: 'Get team detail success',
+            EC: 0,
+            DT: {
+                id: team.id,
+                userId: team.userId,
+                teamName: team.teamName,
+                coach: primaryRepresentative?.fullName || process?.trainerName || 'Chưa cập nhật',
+                coachPhone: representatives?.[REPRESENTATIVE_ROLE.COACH]?.phone || null,
+                representative: {
+                    leader: representatives?.[REPRESENTATIVE_ROLE.LEADER] || null,
+                    coach: representatives?.[REPRESENTATIVE_ROLE.COACH] || null
+                },
+                school,
+                paidImage: process?.paidImage || null,
+                isPaid: process?.isPaid ?? null,
+                rejectionReason: process?.rejectionReason || null,
+                isHighSchool: process?.isHighSchool ?? null,
+                status,
+                participants: participantsData,
+                createdAt: team.createdAt,
+                updatedAt: team.updatedAt
+            }
+        };
+    } catch (error) {
+        return {
+            EM: 'Get team detail failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+}
+const apiDeleteTeamService = async (teamId) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const transaction = await db.sequelize.transaction();
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id'],
+            raw: true,
+            transaction
+        });
+
+        if (!team) {
+            await transaction.rollback();
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        await db.Participant.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Request.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Process.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Representative.destroy({
+            where: {
+                teamId: team.id
+            },
+            transaction
+        });
+
+        await db.Team.destroy({
+            where: {
+                id: team.id
+            },
+            transaction
+        });
+
+        await transaction.commit();
+
+        return {
+            EM: 'Delete team success',
+            EC: 0,
+            DT: ''
+        };
+    } catch (error) {
+        await transaction.rollback();
+        return {
+            EM: 'Delete team failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+}
+
+const apiUpdateTeamStatusService = async (teamId, status, rejectionReason) => {
+    if (!teamId || Number.isNaN(Number(teamId))) {
+        return {
+            EM: 'Invalid team id',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const mappedFlags = mapStatusToProcessFlags(status, rejectionReason);
+    if (!mappedFlags) {
+        return {
+            EM: 'Invalid status',
+            EC: 400,
+            DT: ''
+        };
+    }
+
+    const transaction = await db.sequelize.transaction();
+    let approvalEmailSent = null;
+    let approvalEmailError = null;
+    let approvalEmailRecipients = [];
+    let ownerEmail = null;
+    let ownerEmailSent = null;
+
+    try {
+        const team = await db.Team.findOne({
+            where: {
+                id: teamId
+            },
+            attributes: ['id', 'userId', 'teamName'],
+            transaction
+        });
+
+        if (!team) {
+            await transaction.rollback();
+            return {
+                EM: 'Team not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        const process = await db.Process.findOne({
+            where: {
+                teamId: team.id
+            },
+            attributes: ['id'],
+            transaction
+        });
+
+        if (!process) {
+            await db.Process.create({
+                teamId: team.id,
+                paidImage: null,
+                isHighSchool: false,
+                trainerName: null,
+                ...mappedFlags
+            }, { transaction });
+        }
+        else {
+            await db.Process.update({
+                ...mappedFlags
+            }, {
+                where: {
+                    teamId: team.id
+                },
+                transaction
+            });
+        }
+
+        await transaction.commit();
+
+        if (status === 'Đã duyệt') {
+            try {
+                const owner = await db.User.findOne({
+                    where: {
+                        id: team.userId
+                    },
+                    attributes: ['email'],
+                    raw: true
+                });
+
+                ownerEmail = owner?.email ? String(owner.email).trim().toLowerCase() : null;
+
+                const representativeRows = await db.Representative.findAll({
+                    where: {
+                        teamId: team.id
+                    },
+                    attributes: ['email'],
+                    raw: true
+                });
+
+                const recipientSet = new Set();
+
+                if (ownerEmail) {
+                    recipientSet.add(ownerEmail);
+                }
+
+                representativeRows.forEach((row) => {
+                    const email = String(row?.email || '').trim().toLowerCase();
+                    if (email) {
+                        recipientSet.add(email);
+                    }
+                });
+
+                const recipients = Array.from(recipientSet);
+                approvalEmailRecipients = recipients;
+
+                if (recipients.length > 0) {
+                    let htmlContent = await loadMailTemplateFromFile(
+                        'team-approved.html',
+                        '<p>Ho so doi thi cua ban da duoc duyet thanh cong. Chuc mung doi thi!</p>'
+                    );
+
+                    let sentCount = 0;
+                    const failedRecipients = [];
+
+                    for (const recipientEmail of recipients) {
+                        const personalizedHtml = ReplaceVariable(htmlContent, {
+                            teamName: team.teamName || 'Doi thi',
+                            email: recipientEmail
+                        });
+
+                        const approvalEmailResult = await apiSendingEmailService(
+                            recipientEmail,
+                            'UCPC - Ho so da duoc duyet',
+                            personalizedHtml
+                        );
+
+                        if (approvalEmailResult?.EC === 0) {
+                            sentCount += 1;
+                            if (recipientEmail === ownerEmail) {
+                                ownerEmailSent = true;
+                            }
+                        } else {
+                            if (recipientEmail === ownerEmail) {
+                                ownerEmailSent = false;
+                            }
+                            failedRecipients.push(`${recipientEmail}: ${approvalEmailResult?.EM || 'Unknown error'}`);
+                            console.error('[apiUpdateTeamStatusService] Failed to send approval email:', {
+                                teamId: team.id,
+                                email: recipientEmail,
+                                error: approvalEmailResult?.EM || 'Unknown error'
+                            });
+                        }
+                    }
+
+                    approvalEmailSent = sentCount > 0;
+                    approvalEmailError = failedRecipients.length > 0
+                        ? `Sent ${sentCount}/${recipients.length}. Failed: ${failedRecipients.join(' | ')}`
+                        : null;
+
+                    if (ownerEmail && ownerEmailSent === null) {
+                        ownerEmailSent = recipients.includes(ownerEmail) ? approvalEmailSent : false;
+                    }
+
+                    console.log('[apiUpdateTeamStatusService] Approval email delivery summary:', {
+                        teamId: team.id,
+                        recipients,
+                        sentCount,
+                        failedCount: failedRecipients.length
+                    });
+                } else {
+                    approvalEmailSent = false;
+                    approvalEmailError = 'No recipient email found (owner/representative)';
+                    ownerEmailSent = false;
+                    console.error('[apiUpdateTeamStatusService] No recipient email found for approved team:', {
+                        teamId: team.id,
+                        userId: team.userId
+                    });
+                }
+            } catch (error) {
+                approvalEmailSent = false;
+                approvalEmailError = error?.message || 'Unhandled send error';
+                console.error('[apiUpdateTeamStatusService] Error while sending approval email:', error);
+            }
+        }
+
+        return {
+            EM: 'Update team status success',
+            EC: 0,
+            DT: {
+                teamId: Number(teamId),
+                status,
+                ...mappedFlags,
+                approvalEmailSent,
+                approvalEmailError,
+                approvalEmailRecipients,
+                ownerEmail,
+                ownerEmailSent
+            }
+        };
+    } catch (error) {
+        await transaction.rollback();
+        return {
+            EM: 'Update team status failed',
+            EC: 500,
+            DT: ''
+        };
     }
 }
 const apiGetHelpByUserService = async (userId) => {
@@ -2200,9 +3266,240 @@ const apiSendEmailExampleService = async (email, id_template) => {
         }
     }
 }
+
+// ===== HELP REQUEST ADMIN SERVICES =====
+
+const apiGetAllHelpRequestService = async (page = 1, limit = 10, filters = {}) => {
+    try {
+        const offset = (page - 1) * limit;
+        const where = {};
+
+        // Filter by status (solved or unsolved)
+        if (filters.status === 'solved') {
+            where.isSolve = true;
+        } else if (filters.status === 'unsolved') {
+            where.isSolve = false;
+        }
+
+        // Filter by search keyword
+        if (filters.search) {
+            const searchKeyword = `%${filters.search}%`;
+            where[Op.or] = [
+                { '$User.email$': { [Op.like]: searchKeyword } },
+                { '$User.username$': { [Op.like]: searchKeyword } },
+                { title: { [Op.like]: searchKeyword } },
+                { content: { [Op.like]: searchKeyword } }
+            ];
+        }
+
+        const { count, rows } = await db.Request.findAndCountAll({
+            where,
+            include: [
+                {
+                    model: db.User,
+                    attributes: ['id', 'email', 'username'],
+                    required: filters.search ? true : false
+                },
+                {
+                    model: db.Team,
+                    attributes: ['id', 'teamName'],
+                    required: false,
+                    include: [
+                        {
+                            model: db.Representative,
+                            attributes: ['role', 'schoolName'],
+                            required: false
+                        }
+                    ]
+                }
+            ],
+            attributes: ['id', 'userId', 'teamId', 'title', 'content', 'isSolve', 'createdAt', 'updatedAt'],
+            offset,
+            limit,
+            order: [['createdAt', 'DESC']],
+            raw: false,
+            subQuery: false
+        });
+
+        return {
+            EM: 'Get all help requests success',
+            EC: 0,
+            DT: {
+                total: count,
+                page,
+                limit,
+                totalPages: Math.ceil(count / limit),
+                requests: rows.map(row => {
+                    // Extract schoolName from Team's Representatives
+                    const team = row.Team;
+                    let schoolName = 'N/A';
+
+                    if (team && Array.isArray(team.Representatives) && team.Representatives.length > 0) {
+                        const coach = team.Representatives.find(r => r.role === 'COACH');
+                        const leader = team.Representatives.find(r => r.role === 'LEADER');
+                        schoolName = (coach?.schoolName || leader?.schoolName || team.Representatives[0]?.schoolName || 'N/A');
+                    }
+
+                    return {
+                        id: row.id,
+                        userId: row.userId,
+                        teamId: row.teamId,
+                        userEmail: row.User?.email || 'N/A',
+                        username: row.User?.username || 'N/A',
+                        fullName: row.User?.username || 'N/A',
+                        teamName: row.Team?.teamName || 'N/A',
+                        schoolName: schoolName,
+                        title: row.title,
+                        content: row.content,
+                        isSolve: row.isSolve,
+                        createdAt: row.createdAt,
+                        updatedAt: row.updatedAt
+                    };
+                })
+            }
+        };
+    } catch (error) {
+        console.error('Get all help requests error:', error);
+        return {
+            EM: 'Get all help requests failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+};
+
+const apiGetHelpRequestByIdService = async (requestId) => {
+    try {
+        if (!requestId || Number.isNaN(Number(requestId))) {
+            return {
+                EM: 'Invalid request id',
+                EC: 400,
+                DT: ''
+            };
+        }
+
+        const request = await db.Request.findOne({
+            where: {
+                id: requestId
+            },
+            include: [
+                {
+                    model: db.User,
+                    attributes: ['id', 'email', 'username']
+                },
+                {
+                    model: db.Team,
+                    attributes: ['id', 'teamName'],
+                    include: [
+                        {
+                            model: db.Representative,
+                            attributes: ['role', 'schoolName'],
+                            required: false
+                        }
+                    ]
+                }
+            ],
+            attributes: ['id', 'userId', 'teamId', 'title', 'content', 'isSolve', 'createdAt', 'updatedAt']
+        });
+
+        if (!request) {
+            return {
+                EM: 'Help request not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        // Extract schoolName from Team's Representatives
+        const team = request.Team;
+        let schoolName = 'N/A';
+
+        if (team && Array.isArray(team.Representatives) && team.Representatives.length > 0) {
+            const coach = team.Representatives.find(r => r.role === 'COACH');
+            const leader = team.Representatives.find(r => r.role === 'LEADER');
+            schoolName = (coach?.schoolName || leader?.schoolName || team.Representatives[0]?.schoolName || 'N/A');
+        }
+
+        return {
+            EM: 'Get help request detail success',
+            EC: 0,
+            DT: {
+                id: request.id,
+                userId: request.userId,
+                teamId: request.teamId,
+                userEmail: request.User?.email || 'N/A',
+                username: request.User?.username || 'N/A',
+                fullName: request.User?.username || 'N/A',
+                teamName: request.Team?.teamName || 'N/A',
+                schoolName: schoolName,
+                title: request.title,
+                content: request.content,
+                isSolve: request.isSolve,
+                createdAt: request.createdAt,
+                updatedAt: request.updatedAt
+            }
+        };
+    } catch (error) {
+        console.error('Get help request by id error:', error);
+        return {
+            EM: 'Get help request detail failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+};
+
+const apiSolveHelpRequestService = async (requestId, isSolve = true) => {
+    try {
+        if (!requestId || Number.isNaN(Number(requestId))) {
+            return {
+                EM: 'Invalid request id',
+                EC: 400,
+                DT: ''
+            };
+        }
+
+        const request = await db.Request.findOne({
+            where: {
+                id: requestId
+            }
+        });
+
+        if (!request) {
+            return {
+                EM: 'Help request not found',
+                EC: 404,
+                DT: ''
+            };
+        }
+
+        await request.update({
+            isSolve: isSolve
+        });
+
+        return {
+            EM: `Help request marked as ${isSolve ? 'solved' : 'unsolved'}`,
+            EC: 0,
+            DT: {
+                id: request.id,
+                isSolve: request.isSolve
+            }
+        };
+    } catch (error) {
+        console.error('Solve help request error:', error);
+        return {
+            EM: 'Update help request failed',
+            EC: 500,
+            DT: ''
+        };
+    }
+};
+
 module.exports = {
     apiLoginService,
     apiRegisterService,
+    apiVerifyRegisterEmailService,
+    apiResendRegisterVerificationService,
     apiUpdateInfoService,
     apiSendHelpRequestService,
     apiChangePasswordService,
@@ -2224,11 +3521,15 @@ module.exports = {
     apiForgotPasswordService,
     apiResetPasswordByUserService,
     apiGetDashBoardService,
+    apiGetTeamDetailService,
+    apiDeleteTeamService,
+    apiUpdateTeamStatusService,
     apiGetHelpByUserService,
     apiSaveTemplateMailService,
     apiGetTemplateMailService,
     apiSetDefaultTemplateMailService,
     apiGetTypesMailService,
     apiSendMailWithTemplateService,
-    apiSendEmailExampleService
+    apiSendEmailExampleService,
+    apiUploadPaymentProofService
 }

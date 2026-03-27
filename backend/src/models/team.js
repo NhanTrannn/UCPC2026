@@ -20,6 +20,9 @@ module.exports = (sequelize, DataTypes) => {
       Team.hasOne(models.Process, {
         foreignKey: 'teamId'
       });
+      Team.hasMany(models.Representative, {
+        foreignKey: 'teamId'
+      });
       Team.hasMany(models.Request, {
         foreignKey: 'teamId'
       });

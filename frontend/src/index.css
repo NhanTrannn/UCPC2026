@@ -141,3 +141,77 @@ html {
   animation-timing-function: ease-out;
   animation-fill-mode: forwards;
 }
+
+@keyframes rulesButtonFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rules-btn-float-in {
+  animation: rulesButtonFloatIn 0.75s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.rules-card-shell {
+  position: relative;
+  min-height: 410px;
+  perspective: 1200px;
+}
+
+.rules-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.72s cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+.rules-card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.rules-card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(192, 132, 252, 0.48);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.rules-card-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background-image:
+    radial-gradient(circle at 50% 18%, rgba(219, 39, 119, 0.22), transparent 56%),
+    linear-gradient(165deg, rgba(147, 51, 234, 0.5), rgba(219, 39, 119, 0.22)),
+    url('/photos/puzzle_background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(192, 132, 252, 0.62);
+  box-shadow:
+    inset 0 0 44px rgba(147, 51, 234, 0.32),
+    0 14px 36px rgba(131, 24, 67, 0.35);
+}
+
+.rules-card-front {
+  padding: 1.25rem;
+  transform: rotateY(180deg);
+  background: linear-gradient(160deg, rgba(76, 29, 149, 0.72), rgba(131, 24, 67, 0.36), rgba(20, 20, 34, 0.94));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 767px) {
+  .rules-card-shell {
+    min-height: 340px;
+  }
+}

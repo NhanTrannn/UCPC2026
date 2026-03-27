@@ -1,13 +1,22 @@
+import { useNavigate } from 'react-router-dom';
+import { useAppSelector } from '../../app/redux/hooks';
 import { TiltCard } from "./TiltCard";
 
 function Intro() {
+    const navigate = useNavigate();
+    const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+    const showTeamRegistrationButton = isAuthenticated && user?.role === 'USER' && !user?.hasTeam;
+
     return (
         <section id="Intro" className="w-full min-h-screen py-24 md:py-24 lg:py-32 xl:py-30 relative">
             <div className="mx-auto w-[88%] max-w-[1240px] px-4 md:px-8 lg:px-10 relative z-10">
                 <div className="grid items-center gap-8 md:gap-10 lg:gap-12 lg:grid-cols-[60%_40%]">
                     <div className="flex flex-col justify-center space-y-4 max-w-[680px]">
                         <div className="space-y-2">
-                            <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
+                            <h1
+                                className="text-4xl font-bold tracking-tighter sm:text-6xl xl:text-7xl/none bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text"
+                                style={{ filter: "drop-shadow(0 2px 0 rgba(0,0,0,0.9)) drop-shadow(0 6px 0 rgba(0,0,0,0.75)) drop-shadow(0 14px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 8px rgba(192,132,252,0.3)) drop-shadow(0 0 24px rgba(168,85,247,0.22))" }}
+                            >
                                 UIT COLLEGIATE PROGRAMMING CONTEST 2025
                             </h1>
                             <p className="max-w-[600px] text-zinc-400 md:text-xl">
@@ -15,12 +24,21 @@ function Intro() {
                             </p>
                         </div>
                         <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                            <button className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-11 rounded-md px-8 gap-1">
-                                Đăng kí tham gia
-                            </button>
-                            <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium border bg-background hover:text-accent-foreground h-11 rounded-md px-8 border-zinc-700 text-white hover:bg-zinc-800">
-                                Nộp lệ phí
-                            </button>
+                            {!isAuthenticated ? (
+                                <>
+                                    <button onClick={() => navigate('/register')} className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-11 rounded-md px-8 gap-1">
+                                        Đăng ký tài khoản
+                                    </button>
+                                    <button onClick={() => navigate('/login')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium border bg-background hover:text-accent-foreground h-11 rounded-md px-8 border-zinc-700 text-white hover:bg-zinc-800">
+                                        Đăng nhập
+                                    </button>
+                                </>
+                            ) : showTeamRegistrationButton ? (
+                                <button onClick={() => navigate('/user')} className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-11 rounded-md px-16 gap-1">
+                                    Đăng ký team
+                                </button>
+                            ) : null
+                            }
                         </div>
 
                     </div>

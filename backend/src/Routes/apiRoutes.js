@@ -2,7 +2,10 @@ const express = require('express');
 const {
     apiLoginController,
     apiRegisterController,
+    apiVerifyRegisterEmailController,
+    apiResendRegisterVerificationController,
     apiUpdateInfoController,
+    apiUploadPaymentProofController,
     apiSendHelpRequestController,
     apiChangePasswordController,
     apiGetAllHelpRequestController,
@@ -10,6 +13,7 @@ const {
     apiSolveHelpRequestController,
     apiGetAllUsersController,
     apiGetUserByIdController,
+    apiGetCurrentUserProfileController,
     apiDeleteUserController,
     apiResetPasswordController,
     apiConfirmPaymentController,
@@ -22,6 +26,9 @@ const {
     apiForgotPasswordController,
     apiResetPasswordByUserController,
     apiGetDashboardController,
+    apiGetTeamDetailController,
+    apiDeleteTeamController,
+    apiUpdateTeamStatusController,
     apiGetHelpByUserController,
     apiSaveTemplateMailController,
     apiGetTemplateMailController,
@@ -41,6 +48,8 @@ const initApiRoutes = (app) => {
 
     //auth routes
     apiRoute.post('/register', apiRegisterController);
+    apiRoute.post('/verify-register-email', apiVerifyRegisterEmailController);
+    apiRoute.post('/resend-register-verification', apiResendRegisterVerificationController);
     apiRoute.post('/login', apiLoginController);
 
     //forgot password
@@ -49,17 +58,22 @@ const initApiRoutes = (app) => {
 
     //user routes
     apiRoute.put('/update-info', apiUpdateInfoController);
+    apiRoute.put('/upload-payment-proof', apiUploadPaymentProofController);
     apiRoute.post('/sendHelpRequest', apiSendHelpRequestController);
     apiRoute.post('/changePassword', apiChangePasswordController);
     apiRoute.get('/getHelpByUser/:id', apiGetHelpByUserController); //get all help request with pagination
+    apiRoute.get('/getCurrentUserProfile', apiGetCurrentUserProfileController);
     apiRoute.delete('/deleteHelpRequest/:id', apiDeleteHelpRequestController); //delete help request (solve help request
     //admin routes
     apiRoute.get('/getDashboard', apiGetDashboardController); //get dashboard
+    apiRoute.get('/getTeamDetail/:id', apiGetTeamDetailController); //get team detail by team id
+    apiRoute.delete('/deleteTeam/:id', apiDeleteTeamController); //delete team by team id
+    apiRoute.put('/updateTeamStatus/:id', apiUpdateTeamStatusController); //update team status by team id
     apiRoute.put('/resetPassword/:id', apiResetPasswordController); //reset password
     apiRoute.put('/updateInfo', apiUpdateUserByAdminController); //update user info
     apiRoute.get('/getAllHelpRequest', apiGetAllHelpRequestController); //get all help request with pagination
     apiRoute.get('/getHelpRequestById/:id', apiGetHelpRequestByIdController); //get help request by id
-    apiRoute.put('/solveHelpRequest', apiSolveHelpRequestController); //solve help request
+    apiRoute.put('/solveHelpRequest/:id', apiSolveHelpRequestController); //solve help request
 
     apiRoute.get('/getAllUsers', apiGetAllUsersController); //get all user with pagination
     apiRoute.get('/getUserById/:id', apiGetUserByIdController); //get user by id

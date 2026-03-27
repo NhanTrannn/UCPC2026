@@ -14,10 +14,14 @@ module.exports = (sequelize, DataTypes) => {
       Request.belongsTo(models.Team, {
         foreignKey: 'teamId'
       });
+      Request.belongsTo(models.User, {
+        foreignKey: 'userId'
+      });
     }
   }
   Request.init({
     teamId: DataTypes.INTEGER,
+    userId: DataTypes.INTEGER,
     title: DataTypes.STRING,
     data: DataTypes.TEXT,
     response: DataTypes.TEXT,

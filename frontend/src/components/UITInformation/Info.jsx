@@ -26,7 +26,7 @@ export default function UITInformation() {
     "Trường Đại học Công nghệ Thông tin (UIT) - Đại học Quốc gia TP.HCM là một trong những trường đại học hàng đầu tại Việt Nam chuyên về đào tạo và nghiên cứu trong lĩnh vực công nghệ thông tin và truyền thông. UIT cam kết cung cấp nền giáo dục chất lượng cao, trang bị kiến thức và kỹ năng toàn diện cho sinh viên, giúp họ trở thành những nhà lãnh đạo công nghệ tương lai. Với cơ sở vật chất hiện đại, đội ngũ giảng viên chất lượng, và môi trường học tập sáng tạo, UIT là lựa chọn hàng đầu của những ai đam mê công nghệ.";
 
   return (
-    <section className="relative w-full min-h-screen py-28 md:py-28 overflow-hidden">
+    <section id="Info" className="relative w-full min-h-screen py-28 md:py-28 overflow-hidden">
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-8 md:gap-10 items-center px-4 md:px-8 2xl:gap-16">
         {/* <div className="absolute top-6 right-30 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 text-md rounded-full flex items-center gap-1">
@@ -53,7 +53,7 @@ export default function UITInformation() {
             <h2 className="text-2xl h-20 font-bold sm:text-5xl xl:text-4xl/none bg-gradient-to-r from-white to-zinc-300 text-transparent bg-clip-text">
               Khám phá UIT - Nơi ươm mầm tài năng công nghệ
             </h2>
-            <p className="max-w-[600px] text-zinc-400 md:text-xl">
+            <p className="max-w-[600px] text-justify text-zinc-400 md:text-xl">
               {description}
             </p>
           </div>
